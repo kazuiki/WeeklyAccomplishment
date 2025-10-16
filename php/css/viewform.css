@@ -1,0 +1,631 @@
+/* ViewForm Styles */
+.viewform-container {
+    font-family: Arial, sans-serif;
+    padding: 8px 8px; /* reduce padding */
+    max-width: none; /* allow it to fill the available width */
+    width: 100%; /* occupy full width of parent */
+    margin: 6px 0; /* minimal vertical margin */
+}
+
+/* Header Styles */
+.viewform-container h1, 
+.viewform-container h2, 
+.viewform-container h3 {
+    text-align: center;
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    line-height: 1.2;
+    margin: 4px 0;
+}
+
+.viewform-container .header-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px; /* smaller gap */
+    position: relative;
+}
+
+.viewform-container .header-logo img {
+    width: 48px; /* even smaller logos to compact the header */
+    height: auto;
+}
+
+.viewform-container .header-text {
+    text-align: center;
+}
+
+.viewform-container .header-text h1 {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.viewform-container .header-text h2 {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.viewform-container .header-text h3 {
+    font-size: 12px;
+    font-weight: normal;
+}
+
+/* Official Time Box */
+.viewform-container .official-time {
+    position: absolute;
+    left: 0;
+    top: 0;
+    font-size: 14px;
+    text-align: left;
+}
+
+/* Official time display: align day labels and center '-' placeholders */
+.viewform-container .official-time p { margin: 0px 0; }
+.viewform-container .official-time .ot-day { display: inline-block; width: 35px; font-weight:600; }
+.viewform-container .official-time .ot-time { display: inline-block; min-width: 80px; white-space: nowrap; }
+.viewform-container .official-time .ot-left,
+.viewform-container .official-time .ot-right { white-space: nowrap; }
+.viewform-container .official-time .ot-time.placeholder { text-align: center; display: inline-block; width: 80px; }
+
+/* Main Content */
+.viewform-container .header-section {
+    margin: 8px 0 6px 0; /* bring the section closer to the table */
+    position: relative;
+    padding-top: 10px; /* make room for week-number and warning text */
+}
+
+.viewform-container .header-row {
+    margin: 4px 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+}
+
+/* Header info grid: center Name/Company and Course/Training Period */
+.viewform-container .header-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+    justify-content: stretch;
+    align-items: baseline;
+    margin: 8px auto 12px auto;
+    width: auto;
+    max-width: 1100px;
+    --underline-default: 220px; /* base length for empty fields */
+    --name-width: 220px; /* fixed width for Name field */
+}
+/* ensure header grid does not create a horizontal scrollbar; allow content to truncate instead */
+.viewform-container .header-info-grid {
+    overflow-x: visible;
+    box-sizing: border-box;
+}
+.viewform-container .header-info-grid .info-left,
+.viewform-container .header-info-grid .info-right {
+    width: 100%;
+}
+.viewform-container .header-info-grid .info-row {
+    display: flex;
+    align-items: baseline;
+    gap: 2px; 
+    font-size: 13px;
+    flex-wrap: nowrap;
+}
+.viewform-container .header-info-grid .info-row .sep {
+    padding: 0 2px; /* Reduced from 4px */
+    margin: 0; /* Ensure no extra margin */
+}
+
+.viewform-container .header-info-grid .info-row .underline {
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    padding: 0 2px;
+    min-width: var(--name-width);
+    max-width: var(--name-width);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: baseline;
+    line-height: 1;
+    /* smaller nudge so text and year align better */
+    transform: translateY(2px);
+    text-align: center;
+    box-sizing: border-box;
+    margin-left: 0; /* Ensure no left margin */
+}
+.viewform-container .header-info-grid .info-row.compact {
+    gap: 1px; /* Ultra compact */
+}
+
+.viewform-container .header-info-grid .info-row.compact .sep {
+    padding: 0 1px; /* Minimal space around colon */
+}
+.viewform-container .header-info-grid .info-left .info-row .sep {
+    padding: 0 4px; /* Parehong spacing para sa Name at Company */
+    margin: 0;
+}
+.viewform-container .header-info-grid .info-left .info-row .underline {
+    min-width: 220px !important;
+    max-width: 220px !important;
+}
+.viewform-container .header-info-grid .info-right .info-row {
+    gap: 2px;
+}
+.viewform-container .header-info-grid .info-left .info-row {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+}
+.viewform-container .header-info-grid .info-left .info-row label {
+    width: 70px !important; /* Eksaktong kaparehong width */
+    min-width: 70px !important;
+    text-align: left;
+    font-weight: 600;
+} 
+.viewform-container .header-info-grid .info-left .info-row:nth-child(2) label {
+    width: 65px; /* Medyo mas malawak ng konti para sa "Company" */
+}
+.viewform-container .header-info-grid .info-right .info-row .sep {
+    padding: 0 4px; /* Maintain current spacing for right side */
+}
+
+.viewform-container .header-info-grid .info-right label {
+    width: auto; /* Different handling for right side */
+    min-width: 0;
+}
+.viewform-container .header-info-grid .info-row .underline.small {
+    min-width: calc(var(--name-width) * 0.8); /* 80% of name width */
+    max-width: calc(var(--name-width) * 0.8);
+}
+
+.viewform-container .header-info-grid .info-row .underline.tiny {
+    min-width: calc(var(--name-width) * 0.3); /* 30% of name width */
+    max-width: calc(var(--name-width) * 0.3);
+}
+.viewform-container .header-info-grid label {
+    width: auto; /* Change from fixed width to auto */
+    min-width: 0; /* Allow labels to be as narrow as their content */
+    text-align: left;
+    font-weight: 600;
+    margin-right: 0; /* Remove any right margin */
+    white-space: nowrap; /* Prevent label text from wrapping */
+}
+.viewform-container .header-info-grid .info-row label:first-child {
+    min-width: 45px; /* "Name" - just wide enough for the text */
+}
+.viewform-container .header-info-grid .info-row label[for="company"] {
+    min-width: 65px; /* "Company" - compact width */
+}
+.viewform-container .header-info-grid .info-row label[for="course"] {
+    min-width: 50px; /* "Course" - compact width */
+}
+.viewform-container .header-info-grid .info-row .inline-year {
+    margin-left: 4px; /* Reduced from 6px */
+    margin-right: 4px; /* Reduced from 10px */
+    min-width: 35px; /* "Year" - compact width */
+}
+.viewform-container .header-info-grid .info-row label[for="training-period"] {
+    min-width: 95px; /* "Training Period" - compact but readable */
+}
+.viewform-container .header-info-grid label {
+    line-height: 1; /* keep label baseline consistent with underline */
+}
+.viewform-container .header-info-grid .line-field-auto {
+    display: inline-block;
+    min-width: 80px;
+    flex: 1 1 auto;
+}
+.viewform-container .header-info-grid .info-row .underline.company-underline {
+    min-width: var(--name-width);
+    max-width: var(--name-width);
+}
+
+/* Underline styles to mimic the printed form */
+.viewform-container .underline {
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    padding: 0 2px; /* small padding so underline matches content width */
+    min-width: 0; /* allow it to be as short as the content */
+    vertical-align: baseline; /* ensure underline sits on the text baseline */
+    line-height: 1; /* consistent line height */
+    /* smaller nudge to keep underline and inline text aligned */
+    transform: translateY(2px);
+}
+.viewform-container .underline.small { padding: 0 2px; }
+.viewform-container .underline.tiny { padding: 0 2px; }
+.viewform-container .sep { padding: 0 4px; }
+.viewform-container .inline-year {
+    margin-left: 4px; /* keep a compact gap */
+    margin-right: 4px;
+    display: inline-block;
+    vertical-align: baseline; /* align year text to the same baseline as course */
+    line-height: 1;
+}
+
+/* Show a sensible underline even when the span is empty */
+.viewform-container .underline:empty {
+    display: inline-block;
+    min-width: var(--underline-default); /* default visible underline for empty regular fields */
+    padding: 0 2px;
+}
+.viewform-container .underline.small:empty {
+    min-width: calc(var(--underline-default) * 0.6); /* small fields get a smaller underline */
+}
+.viewform-container .underline.tiny:empty {
+    min-width: calc(var(--underline-default) * 0.25); /* tiny fields (Year) still get a visible short line */
+}
+
+/* Left column underlines: size to their content; empty-state handled by :empty rules */
+.viewform-container .header-info-grid .info-left .underline {
+    /* do not force a min-width here so the underline matches the text length */
+    max-width: 100%; /* don't overflow parent */
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Right column underlines: also size to content; keep nowrap so Course/Training stay on one line */
+.viewform-container .header-info-grid .info-right .underline.small,
+.viewform-container .header-info-grid .info-right .underline {
+    max-width: 100%;
+    display: inline-block;
+    white-space: nowrap; /* keep Course and Training Period on a single line */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+    /* allow underlines to shrink on small screens; header grid will scroll if needed */
+    .viewform-container .underline { min-width: 0; }
+    .viewform-container .underline.small { min-width: 0; }
+    .viewform-container .underline.tiny { min-width: 0; }
+}
+
+/* When the sidebar narrows, allow the grid to wrap into one column */
+@media (max-width: 900px) {
+  .viewform-container .header-info-grid {
+    grid-template-columns: 1fr;
+    gap: 8px 12px;
+  }
+  .viewform-container .header-info-grid label { width: 90px; }
+}
+
+.viewform-container .line-field,
+.viewform-container .line-field-auto {
+    border-bottom: 1px solid #000;
+    min-width: 150px;
+    display: inline-block;
+    padding: 0 5px;
+}
+
+/* Table Styles */
+.viewform-container table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #000;
+    margin: 6px 0; /* tighter vertical spacing */
+    font-size: 11px; /* slightly smaller font to fit table on one page */
+    min-height: 330px; /* ensure table appears larger on screen */
+}
+
+.viewform-container th, 
+.viewform-container td {
+    border: 1px solid #000;
+    padding: 6px 8px; /* slightly larger cell padding for taller rows */
+    text-align: center;
+    vertical-align: middle;
+}
+
+.viewform-container th {
+    background-color: #6495ED; /* Blue header */
+    color: #000;
+    font-weight: bold;
+    padding: 6px 4px; /* tighter header padding */
+}
+
+.viewform-container td.task-cell {
+    text-align: center;
+}
+
+/* Use simple 1px collapsed borders so the table shows clean single lines */
+.viewform-container th.regular-time,
+.viewform-container td.regular-time,
+.viewform-container td.time-in,
+.viewform-container th.time-in {
+    border-right: 1px solid #000;
+}
+
+/* Grand Total Row */
+.viewform-container table tr:last-child td {
+    font-weight: bold;
+}
+
+/* Signature Section */
+.viewform-container .signature-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 40px; /* slightly reduced whitespace before signatures */
+}
+
+.viewform-container .signature-block {
+    width: 30%;
+    text-align: center;
+    font-size: 12px; /* slightly smaller signature font */
+}
+
+.viewform-container .signature-block p {
+    margin: 5px 0;
+}
+
+/* Warning Text */
+.viewform-container .header-section .warning-text {
+    position: absolute; /* positioned relative to .header-section */
+    top: -200px; /* slightly below the header top */
+    right: 2px; /* place it left of the week-number box (adjustable) */
+    font-size: 11px;
+    max-width: 220px;
+    text-align: right;
+    line-height: 1.3;
+}
+
+/* Warning / top-right note - on-screen */
+#warning-text, .warning-text, .top-right-note, .header-note {
+  position: absolute; /* place relative to the viewform container */
+  top: 12px; /* small offset from top */
+  right: 12px; /* small offset from right */
+  max-width: 220px;
+  text-align: right;
+  font-size: 12px;
+  line-height: 1.1;
+  color: #222;
+  z-index: 5;
+}
+
+/* Ensure viewform container is positioned to allow absolute children */
+.viewform-container, #viewform-container {
+  position: relative;
+}
+
+/* Print adjustments: legal landscape with minimal margins to reduce white space */
+@media print {
+    /* Use minimal page margins to maximize content area */
+    @page { size: 13in 8.5in; margin: 0.3in; }
+
+    /* Ensure the viewform container has no extra margins/padding in print */
+    #viewform-container, .viewform-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box;
+    }
+  
+    /* Warning / top-right note - on-screen */
+    #warning-text, .warning-text, .top-right-note, .header-note {
+        position: absolute; /* place relative to the viewform container */
+        top: 12px; /* small offset from top */
+        right: 12px; /* small offset from right */
+        max-width: 220px;
+        text-align: right;
+        font-size: 12px;
+        line-height: 1.1;
+        color: #222;
+        z-index: 5;
+    }
+
+    /* Place warning text inside printable area: use relative positioning and reduced font */
+    #warning-text, .warning-text, .top-right-note, .header-note {
+        position: relative !important;
+        float: right;
+        display: block;
+        margin-top: 20px; /* keep inside the header area */
+        margin-right: 0.25in; /* small gap from the right page margin */
+        max-width: 180px;
+        font-size: 10px !important;
+        color: #000;
+        line-height: 1.05;
+    }
+
+    /* Ensure absolute/fixed elements inside the viewform are laid out in normal flow */
+    #viewform-container * {
+        position: static !important;
+    }
+
+    /* Global print reductions to fit one page */
+    body, #viewform-container, .viewform-container { font-size: 10px !important; color: #000 !important; }
+
+    /* Make header logos smaller for print */
+    .viewform-container .header-logo img { width: 60px !important; }
+
+    /* Restore Official Time box in print and place it inside printable margins */
+    .viewform-container .official-time {
+        display: block !important;
+        position: absolute !important;
+        left: 0.18in !important;
+        top: 0.10in !important;
+        font-size: 13px !important;
+        text-align: left !important;
+    }
+
+    /* Tighten table spacing and fonts */
+    .viewform-container table, .viewform-table { font-size: 9px !important; }
+    .viewform-container th, .viewform-container td, .viewform-table th, .viewform-table td { padding: 3px 4px !important; }
+
+    /* Lower the Week No. block (it was positioned too high) */
+    #week-number {
+        position: absolute !important;
+        right: 1.5in !important;
+        top: -85px !important; /* bring it down */
+        text-align: center !important;
+    }
+
+    /* Reduce spacing between header info (Name/Company/Course) and table */
+    .viewform-container .header-section { padding-top: 0 !important; margin-bottom: 2px !important; }
+    .viewform-container .header-info-grid { margin: 2px auto 2px auto !important; }
+    /* Remove extra gap above the table so header info sits closer */
+    .viewform-container table { margin-top: 0 !important; }
+
+    /* Add more space between the table and signature area in print */
+    .viewform-container .signature-container { margin-top: 28px !important; }
+
+    /* Slightly reduce header/title spacing */
+    .viewform-container .header-container { gap: 6px !important; }
+    .viewform-container .header-text h1 { font-size: 16px !important; }
+    .viewform-container .header-text h2 { font-size: 14px !important; }
+
+    /* Reduce signature font but keep larger gap between table and signatures */
+    .viewform-container .signature-container { margin-top: 28px !important; }
+    .viewform-container .signature-block { font-size: 10px !important; }
+
+    /* Reduce any margins around the table to use vertical space */
+    .viewform-container table { margin: 0 0 !important; }
+
+    /* Ensure table will not break awkwardly across pages; keep rows compact */
+    tr, td, th { page-break-inside: avoid !important; }
+
+    /* Print-friendly inputs: show their values as plain text (no borders/background) */
+    .viewform-container input,
+    .viewform-container input[type="text"],
+    .viewform-container input[type="date"],
+    .viewform-container input[type="time"],
+    .viewform-container textarea,
+    .viewform-container select,
+    #viewform-container input,
+    #viewform-container textarea,
+    #viewform-container select {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font: inherit !important;
+        color: inherit !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    }
+
+    /* Remove underline styling in print for visual fields that mimic underlines */
+    .viewform-container .underline,
+    .viewform-container .line-field,
+    .viewform-container .line-field-auto,
+    #viewform-container .underline,
+    #viewform-container .line-field,
+    #viewform-container .line-field-auto {
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+        background: transparent !important;
+    }
+}
+
+/* Re-enable underlines specifically for the header fields when printing
+   (Name, Company, Course, Year, Training Period) so the printed form shows lines */
+@media print {
+    .viewform-container .header-info-grid .underline,
+    .viewform-container .header-info-grid .underline.small,
+    .viewform-container .header-info-grid .underline.tiny,
+    .viewform-container .header-info-grid .line-field,
+    .viewform-container .header-info-grid .line-field-auto,
+    #viewform-container .header-info-grid .underline,
+    #viewform-container .header-info-grid .line-field,
+    #viewform-container .header-info-grid .line-field-auto {
+        border-bottom: 1px solid #000 !important;
+        padding: 0 2px !important;
+        display: inline-block !important;
+        background: transparent !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* Ensure logout modal is on top and clickable */
+#logoutModal,
+.modal {
+  z-index: 10050 !important;
+  pointer-events: auto !important;
+}
+
+/* modal content and buttons must accept clicks */
+#logoutModal .modal-content,
+.modal .modal-content,
+#logoutModal .modal-buttons,
+#logoutModal .modal-buttons button,
+.modal .modal-buttons button {
+  z-index: 10060 !important;
+  pointer-events: auto !important;
+}
+
+/* If there is any backdrop/overlay element, keep it below the modal */
+.modal-backdrop, .overlay, .custom-overlay {
+  z-index: 10040 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure no invisible element covers the confirm button */
+#logoutModal .confirm-filled {
+  position: relative !important;
+  z-index: 10070 !important;
+  pointer-events: auto !important;
+}
+
+/* Additional print overrides: ensure live date/time and replacement spans are visible when printing */
+@media print {
+    /* Hide the live date/time in print view */
+    #currentDateTime {
+        display: none !important;
+    }
+
+    /* Ensure spans that replaced inputs/contenteditable look like plain text */
+    .print-replacement, .print-replacement * {
+        background: transparent !important;
+        color: #000 !important;
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+
+    /* Avoid hiding contenteditable replacements accidentally */
+    [contenteditable], [contenteditable] * {
+        background: transparent !important;
+        color: #000 !important;
+    }
+
+    /* Reduce unnecessary spacing in print to maximize content area */
+    .viewform-container {
+        padding: 0 !important;
+        margin: 0.25in 0 0 0 !important; /* add top margin to prevent cutoff */
+    }
+
+    .viewform-container h1, 
+    .viewform-container h2, 
+    .viewform-container h3 {
+        margin: 2px 0 !important;
+        line-height: 1.1 !important;
+    }
+
+    .viewform-container .header-container {
+        gap: 8px !important;
+        margin: 0 !important;
+    }
+
+    .viewform-container .header-section {
+        margin: 4px 0 2px 0 !important;
+        padding-top: 5px !important;
+    }
+
+    .viewform-container .header-info-grid {
+        gap: 4px 16px !important;
+        margin: 4px auto 6px auto !important;
+    }
+
+    .viewform-container table {
+        margin: 3px 0 !important;
+        font-size: 10px !important;
+    }
+
+    .viewform-container th, 
+    .viewform-container td {
+        padding: 3px 4px !important;
+    }
+
+    .viewform-container .signature-container {
+        margin-top: 20px !important;
+    }
+
+    .viewform-container .signature-block p {
+        margin: 3px 0 !important;
+    }
+}

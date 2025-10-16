@@ -1,0 +1,15 @@
+-- Create the database
+CREATE DATABASE `weeklyreport`
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;
+
+-- Select the database to use
+USE `weeklyreport`;
+
+-- Create a sample table inside weeklyreport (example: users table)
+CREATE TABLE `users` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,0 +1,905 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+body {
+  min-height: 100vh;
+  background: url('../img/QCU-BUILDING-1024x683-1.jpg') center/cover no-repeat fixed;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: -1;
+}
+
+.auth-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 1400px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+
+.hero {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: -3vw;
+}
+
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  color: #ffffff;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px -3vw 64px -3vw;
+  gap: 16px;
+  max-width: 600px;
+  margin: 0;
+  text-align: left;
+}
+
+.hero-content h1 {
+  font-size: 80px;
+  line-height: 1.05;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.hero-content h1 span {
+  font-weight: 700;
+}
+
+.hero-sub {
+  max-width: 520px;
+  opacity: 0.95;
+  font-size: 26px;
+  line-height: 1.4;
+}
+
+.hero-logos {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 10px;
+}
+
+.hero-logos img { height: 88px; width: 88px; object-fit: contain; }
+
+/* Right glass panel */
+.auth-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+
+.auth-panel { position: relative; z-index: 0; }
+
+.auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 550px;
+  min-height: 70vh;
+  padding: 36px 28px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #e7e9ee;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start; /* Changed from center to flex-start */
+  box-sizing: border-box;
+  padding-top: 150px; /* Add more top padding to move content down */
+  padding-left: 105px;
+}
+
+.auth-head {
+  margin-bottom: 24px;
+  padding-top: 20px;
+}
+
+.auth-head h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  line-height: 1.2;
+  color: #ffffff; /* White color */
+}
+
+.auth-head p {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 2px;
+  line-height: 1.4;
+  color: #ffffff; /* White color */
+}
+
+/* Input groups - Fixed sizing */
+.input-group {
+  margin-bottom: 15px;
+  text-align: left;
+  width: 100%;
+  max-width: 350px; /* Fixed max width */
+}
+
+.input-group label {
+  font-size: 12px;
+  color: #ffffff;
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: block;
+  line-height: 1.2;
+}
+
+.input-group input,
+.input-group select,
+.input-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  margin-top: 5px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: 14px;
+  height: 42px; /* Fixed height */
+  box-sizing: border-box;
+}
+
+.input-group select {
+  height: 42px;
+  background-color: rgba(255,255,255,0.06);
+  cursor: pointer;
+}
+
+#signup-year {
+  width: 100%;
+  padding: 10px;
+}
+
+/* Buttons - Fixed sizing */
+.btn {
+  width: 100%;
+  max-width: 350px; /* Fixed max width */
+  padding: 12px 14px;
+  border: none;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  margin-top: 5px;
+  height: 48px; /* Fixed height */
+  box-sizing: border-box;
+}
+
+.btn.primary { background: #4b5bfd; box-shadow: 0 6px 18px rgba(75, 91, 253, 0.35); border-radius: 10px; }
+.btn.primary:hover { background: #3f4ee6; transform: translateY(-1px); }
+
+/* Signup link - Fixed sizing */
+.signup-link {
+  margin-top: 15px;
+  font-size: 14px;
+  color: #ffffff;
+  max-width: 350px; /* Fixed max width */
+  text-align: center; /* Center the text */
+  margin-left: auto;
+  margin-right: 65px;
+}
+
+.signup-link a {
+  color: #9db2ff;
+  text-decoration: none;
+  font-weight: bold;
+  font-style: italic; /* Make Sign up here italic */
+}
+
+.link.forgot {
+  color: #ffffff;
+  opacity: 0.85;
+  font-size: 12px;
+  text-decoration: none; /* Remove underline */
+}
+
+.form-row-small {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+  margin-bottom: 8px;
+  max-width: 350px; /* Fixed max width */
+}
+
+.form-msg {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  max-width: 350px; /* Fixed max width */
+  color: #ffffff; /* White color */
+}
+
+.form-msg.error { color: #ffb4b4; }
+.form-msg.success { color: #a4ffb1; }
+
+/* Underline (line) style for inputs inside the glass auth card */
+.auth-card .input-group input {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.8); /* white baseline */
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+  color: #ffffff; /* white text */
+}
+
+.auth-card .input-group input::placeholder { color: rgba(157,178,255,0.80); }
+.auth-card .input-group input:focus {
+  outline: none;
+  border-bottom-color: rgba(255, 255, 255, 1); /* white on focus */
+  box-shadow: none; /* remove extra top line */
+}
+
+/* Floating label pattern */
+.input-group.float { position: relative; }
+.input-group.float input {
+  padding-top: 18px;
+}
+.input-group.float label {
+  position: absolute;
+  left: 0;
+  top: 20px; /* Move closer to the input line */
+  transform: translateY(0);
+  transition: all .15s ease;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.75); /* White with opacity */
+}
+.auth-card .input-group.float input:focus + label,
+.auth-card .input-group.float input:not(:placeholder-shown) + label,
+#changePasswordModal .modal-content .input-group.float input:focus + label,
+#changePasswordModal .modal-content .input-group.float input:not(:placeholder-shown) + label {
+  top: -8px; /* Move higher when focused */
+  font-size: 11px;
+  color: #ffffff; /* White color when focused */
+}
+
+/* Ensure floating motion in the signup modal as well */
+#signupModal .modal-content .input-group.float input:focus + label,
+#signupModal .modal-content .input-group.float input:not(:placeholder-shown) + label {
+  top: -4px;
+  font-size: 11px;
+}
+
+/* Underlines inside recovery modal too */
+#changePasswordModal .modal-content.recovery .input-group.float input {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid #000000;
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Floating label colors for modals: muted when placeholder, normal when lifted */
+#changePasswordModal .modal-content .input-group.float label,
+#signupModal .modal-content .input-group.float label { color: rgba(0,0,0,0.55); }
+
+#changePasswordModal .modal-content .input-group.float input:focus + label,
+#changePasswordModal .modal-content .input-group.float input:not(:placeholder-shown) + label,
+#signupModal .modal-content .input-group.float input:focus + label,
+#signupModal .modal-content .input-group.float input:not(:placeholder-shown) + label {
+  color: #333;
+}
+
+
+/* Modal base */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out;
+}
+
+.modal.show {
+    opacity: 1;
+}
+
+/* Modal popup animation: base content */
+.modal .modal-content,
+.modal .modal-content.recovery,
+.modal .modal-content.status {
+  transform: translateY(14px) scale(0.985);
+  opacity: 0;
+  transition: transform .35s ease, opacity .35s ease;
+}
+
+.modal.show .modal-content,
+.modal.show .modal-content.recovery,
+.modal.show .modal-content.status {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* Hide background elements when modal is open */
+body.modal-open .hero,
+body.modal-open .auth-panel {
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out;
+}
+
+body.modal-open .hero-content,
+body.modal-open .auth-card {
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out;
+}
+
+/* Ensure smooth transitions for all elements */
+.hero,
+.auth-panel,
+.hero-content,
+.auth-card {
+    transition: opacity 0.4s ease-in-out;
+}
+
+.modal-content {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 5px;
+    width: 92%;
+    max-width: 520px;
+}
+
+.modal-content h2 {
+    text-align: center;
+    font-size: 24px;
+    font-family: 'Arial', sans-serif;
+    color: #333;
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+.close { float: right; cursor: pointer; font-size: 24px; }
+
+/* Signup button */
+.signup-btn {
+    margin-top: 10px;
+    background-color: #4CAF50;
+}
+
+.signup-btn:hover {
+    background-color: #45a049;
+}
+
+/* Date range */
+.date-range {
+    display: flex;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.date-input {
+    flex: 1;
+}
+
+.date-input label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+}
+
+.date-input input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.date-input input:focus {
+    border-color: #4e54c8;
+    outline: none;
+}
+
+/* ================== CHANGE PASSWORD MODAL ================== */
+.change-password-btn {
+    margin-top: 10px;
+    background-color: #ff9800;
+}
+
+.change-password-btn:hover {
+    background-color: #e68900;
+}
+
+#changePasswordModal .modal-content {
+    max-width: 400px;
+}
+
+#changePasswordModal .modal-content input {
+    margin-bottom: 10px;
+}
+
+/* ===== Change Password (Recovery) modal specific style ===== */
+#changePasswordModal .modal-content.recovery {
+  max-width: 440px;
+  min-height: 400px;
+  padding-left: 40px; /* Reduce left padding */
+  padding-right: 20px;
+}
+#changePasswordModal .modal-content.recovery h2 {
+  margin-bottom: 6px;
+  text-align: left;
+  padding-left: 0; /* Remove extra left padding */
+}
+#changePasswordModal .modal-content.recovery .modal-sub {
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: #666;
+  padding-left: 0; /* Remove extra left padding */
+}
+
+#changePasswordModal .modal-content.recovery .input-group input {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid #000000; /* Black underline */
+  border-radius: 0;
+  padding-left: 0; /* Remove left padding */
+  padding-right: 0;
+  padding-bottom: 8px; /* Add bottom padding for better spacing */
+}
+
+#changePasswordModal .modal-content.recovery .input-group input:focus {
+  outline: none;
+  border-bottom-color: #000000; /* Black on focus */
+  box-shadow: none; /* remove extra top line */
+}
+
+#changePasswordModal .modal-content.recovery .input-group input:disabled {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid #cccccc; /* Gray underline for disabled */
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 8px;
+  color: #999999; /* Gray text for disabled */
+}
+
+/* Password validation message */
+.password-validation {
+  position: absolute;
+  right: 0;
+  bottom: -20px;
+  font-size: 11px;
+  color: #ff4444;
+  display: none;
+}
+
+.password-validation.show {
+  display: block;
+}
+
+/* Signup Modal - Match Password Recovery Size */
+#signupModal .modal-content.recovery {
+  max-width: 440px;
+  min-height: 500px;
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-top: 50px;
+  text-align: center;
+}
+
+#signupModal .modal-content.recovery h2 {
+  margin-bottom: 6px;
+  text-align: left;
+  padding-left: 25px;
+}
+
+#signupModal .modal-content.recovery .modal-sub {
+  margin-bottom: 16px;
+  font-size: 10px;
+  color: #666;
+  padding-left: 25px;
+  text-align: left;
+}
+
+#signupModal .modal-content.recovery form {
+  max-width: 350px;
+  margin: 0 auto;
+}
+
+/* ===== Login Status Modals (Success/Error) ===== */
+.modal .status-bar { height: 150px; width: 100%; border-top-left-radius: 8px; border-top-right-radius: 8px; }
+.modal .status-bar.success { background: #3b8f1a; }
+.modal .status-bar.error { background: #8f1a1a; }
+
+.modal .status-icon {
+  width: 180px; height: 180px; border-radius: 50%;
+  border: 8px solid #ffffff; color: #ffffff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 64px; font-weight: 700;
+  margin: -90px auto 10px auto;
+}
+.modal .status-icon { transform: scale(0.9); opacity: 0; }
+.modal.show .status-icon { animation: statusPop .4s ease .15s both; }
+
+@keyframes statusPop {
+  0% { transform: scale(0.9); opacity: 0; }
+  60% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.modal .status-icon.success { background: #3b8f1a; }
+.modal .status-icon.error { background: #8f1a1a; }
+
+.modal .status-title {
+  text-align: center; font-size: 36px; margin: 10px 0 6px 0; color: #333333; padding-top: 30px;
+}
+.modal .status-sub {
+  text-align: center; font-size: 12px; color: #555555; margin-bottom: 28px;
+}
+
+.modal .modal-buttons.single { display: flex; justify-content: center; padding-top: 25px;}
+.modal .btn.primary.success { background: #3b8f1a; border-color: #3b8f1a; color: #ffffff; }
+.modal .btn.primary.error { background: #8f1a1a; border-color: #8f1a1a; color: #ffffff; }
+
+/* Match size with recovery/signup */
+#signupSuccessModal .modal-content.status,
+#signupErrorModal .modal-content.status { max-width: 440px; min-height: 500px; padding: 0 20px 24px 20px; border-radius: 10px; }
+
+/* Make the colored status bars span the full modal width (compensate for inner padding) */
+#signupSuccessModal .modal-content.status .status-bar,
+#signupErrorModal .modal-content.status .status-bar {
+  width: calc(100% + 40px); /* 20px left + 20px right padding */
+  margin-left: -20px;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+/* Trigger animation when the specific modal itself becomes .show */
+#signupSuccessModal.show .status-bar,
+#signupErrorModal.show .status-bar {
+  animation: barDrop .35s ease-out both;
+}
+
+@keyframes barDrop {
+  0% { transform: translateY(-10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Signup modal input styling to match password recovery exactly */
+#signupModal .modal-content.recovery .input-group input {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid #000000; /* Black underline to match */
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 8px;
+}
+
+#signupModal .modal-content.recovery .input-group input:focus {
+  outline: none;
+  border-bottom-color: #000000; /* Black on focus */
+  box-shadow: none;
+}
+
+
+#changePasswordModal .inline-action {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  align-items: baseline; /* Align with the baseline of text */
+}
+
+#changePasswordModal .inline-action .flex-1 { flex: 1; }
+
+#changePasswordModal .btn.small {
+  width: auto;
+  padding: 6px 10px;
+  height: 36px;
+  font-size: 12px;
+  min-width: 70px;
+  margin-bottom: 1px; /* Slight adjustment to align with underline */
+}
+
+#changePasswordModal .modal-buttons.row {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  max-width: 350px; /* Match input width */
+  margin-left: auto;
+  margin-right: auto; /* Center the buttons */
+  padding-right: 26px; /* Add right padding for adjustment */
+  padding-bottom: 25px;
+}
+
+#changePasswordModal .btn.outline {
+  background: #fff;
+  color: #4b5bfd;
+  border: 1.5px solid #4b5bfd;
+  flex: 1; /* Make buttons equal width */
+}
+
+#changePasswordModal .btn.outline:hover { background: #eef1ff; }
+
+#changePasswordModal .modal-buttons .btn.primary {
+  flex: 1; /* Make buttons equal width */
+}
+
+/* Ensure modal inputs readable against white bg */
+.modal-content label { color: #333; font-weight: 600; font-size: 13px; }
+.modal-content input,
+.modal-content select,
+.modal-content textarea {
+  background: #fff;
+  color: #333;
+  border: 1px solid #ccc;
+}
+
+/* Visible primary action in modals */
+.modal-content .btn { background: #4b5bfd; color: #fff; }
+.modal-content .btn:hover { background: #3f4ee6; }
+
+
+/* Add or update this CSS for the success message */
+.success-message {
+    position: absolute;
+    top: 80px; /* Increase this value to move it lower */
+    left: 0;
+    right: 0;
+    z-index: 10;
+    margin: 0 auto;
+    width: calc(100% - 40px);
+    max-width: 800px;
+    background: #d4edda;
+    color: #155724;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #c3e6cb;
+    transition: opacity 0.3s ease-out;
+}
+
+/* Ensure content-body has proper positioning */
+.content-body {
+    position: relative;
+}
+
+/* Ensure welcome-message stays in place */
+.welcome-message {
+    position: relative;
+    z-index: 1;
+}
+
+
+@media (max-width: 900px) {
+  .auth-layout {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+  }
+  .hero {
+    min-height: 40vh;
+    justify-content: center;
+    padding-left: 0;
+  }
+  .hero-content {
+    padding: 40px 6vw;
+    max-width: 100%;
+    text-align: center;
+  }
+  .hero-content h1 {
+    font-size: 48px;
+    white-space: normal;
+  }
+  .hero-sub {
+    font-size: 16px;
+  }
+  .hero-logos img {
+    height: 60px;
+    width: 60px;
+  }
+  .auth-panel { padding: 18px; }
+  .auth-card {
+    width: 100%;
+    max-width: 92%;
+    min-height: 60vh;
+  }
+}
+
+.viewform-container {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+}
+
+/* Adjust viewform table styles for the container */
+/* Table in viewform: use collapsed borders and visible vertical separators */
+.viewform-container table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  border: 1px solid #bbb;
+}
+
+.viewform-container th,
+.viewform-container td {
+  border: 1px solid #ddd;
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+/* Stronger separator between Regular Time and the other columns */
+.viewform-container th.regular-time,
+.viewform-container td.regular-time {
+  border-right: 3px solid #333; /* darker separator for visibility */
+}
+
+/* Separate Time-In and Time-Out with a thin divider */
+.viewform-container td.time-in,
+.viewform-container th.time-in {
+  border-right: 2px solid #666; /* separator between Time-In and Time-Out */
+}
+
+/* Draw a vertical divider inside the colspan header to visually split Time-In/Time-Out */
+.viewform-container th.regular-time {
+  position: relative;
+  padding-right: 20px;
+  padding-left: 20px;
+}
+.viewform-container th.regular-time::after {
+  content: "";
+  position: absolute;
+  top: 10%;
+  bottom: 10%;
+  left: calc(50% - 1px); /* center between the two subcolumns */
+  width: 2px;
+  background: #666;
+}
+
+.viewform-container table th,
+.viewform-container table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.viewform-container table th {
+  background: #f4f4f4;
+  font-weight: 600;
+}
+
+/* stronger separators for regular-time and time-in */
+.regular-time {
+  border-right: 3px solid #bbb; /* visually separates regular-time from neighbors */
+}
+.time-in {
+  border-right: 2px solid #ccc; /* separator between Time-In and Time-Out */
+}
+
+/* optional header classes in case we later split the header cells */
+#viewform-container table th.time-in,
+#viewform-container table th.time-out {
+  font-weight: 700;
+}
+
+.error-notification {
+  position: fixed;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #dc3545; /* red */
+  color: white;
+  padding: 15px 25px;
+  text-align: center;
+  transition: top 0.3s ease-in-out;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: 8px;
+  min-width: fit-content;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+}
+
+.error-notification.show {
+    top: 20px;
+}
+
+.error-notification::before {
+    content: "✕";
+    width: 24px;
+    height: 24px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: normal;
+    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="%23e3e3e3"><path d="M330-120 120-330v-300l210-210h300l210 210v300L630-120H330Zm36-190 114-114 114 114 56-56-114-114 114-114-56-56-114 114-114-114-56 56 114 114-114 114 56 56Zm-2 110h232l164-164v-232L596-760H364L200-596v232l164 164Zm116-280Z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+
+.success-notification {
+  position: fixed;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #198754; /* green */
+  color: white;
+  padding: 15px 25px;
+  text-align: center;
+  transition: top 0.3s ease-in-out;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: 8px;
+  min-width: fit-content;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+}
+
+.success-notification.show {
+  top: 20px;
+}
+
+.success-notification::before {
+  content: "✓";
+  width: 24px;
+  height: 24px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: normal;
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="%23ffffff"><path d="M330-120 120-330v-300l210-210h300l210 210v300L630-120H330Zm36-190 314-314-56-56-258 258-144-144-56 56 200 200Zm-2 110h232l164-164v-232L596-760H364L200-596v232l164 164Zm116-280Z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}

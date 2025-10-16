@@ -1,0 +1,4 @@
+taskkill /PID 11280 /F  : pang off nang naka run na port sa web
+
+netstat -ano | findstr :8080 : pang check if merong nag rurun sa port na 8080 sa web
+

@@ -1,0 +1,44 @@
+USE weeklyreport;
+
+CREATE TABLE weekly_accomplishments (
+id INT PRIMARY KEY AUTO_INCREMENT,
+date_record DATE NOT NULL,
+day_of_week ENUM('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT') NOT NULL,
+time_in TIME,
+time_out TIME,
+task_completed TEXT,
+total_hours DECIMAL(4,2),
+grand_total DECIMAL(4,2),
+remarks VARCHAR(255),
+student_name VARCHAR(100),
+student_course VARCHAR(50),
+student_year VARCHAR(20),
+company_name VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+CONSTRAINT unique_daily_record UNIQUE (date_record)
+);
+
+
+
+
+Alter table :
+
+USE weeklyreport;
+
+CREATE TABLE student_info (
+    student_id INT PRIMARY KEY AUTO_INCREMENT,
+    student_name VARCHAR(100) NOT NULL,
+    student_course VARCHAR(50) NOT NULL,
+    student_year VARCHAR(20) NOT NULL,
+    company_name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Modify weekly_accomplishments table to reference student_info
+ALTER TABLE weekly_accomplishments
+DROP COLUMN student_name,
+DROP COLUMN student_course,
+DROP COLUMN student_year,
+DROP COLUMN company_name,
+DROP COLUMN student_id INT,
+ADD FOREIGN KEY (student_id) REFERENCES student_info(student_id);
