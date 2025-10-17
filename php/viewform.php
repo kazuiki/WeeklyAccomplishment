@@ -44,30 +44,6 @@ $days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 $trainingFrom = $monday->format('F d, Y');
 $trainingTo = $saturday->format('F d, Y');
 
-// If you want the actual first and last dates that have data in this week, use this instead:
-/*
-$actualDateRangeSql = "SELECT MIN(date_record) as first_date, MAX(date_record) as last_date 
-                      FROM weekly_accomplishments 
-                      WHERE users_user_id = ? 
-                      AND YEAR(date_record) = ? 
-                      AND WEEK(date_record, 1) = ?";
-
-if ($dateRangeStmt = $conn->prepare($actualDateRangeSql)) {
-    $dateRangeStmt->bind_param("iii", $user_id, $selectedYear, $selectedWeek);
-    $dateRangeStmt->execute();
-    $dateRangeResult = $dateRangeStmt->get_result();
-    
-    if ($dateRangeRow = $dateRangeResult->fetch_assoc()) {
-        if (!empty($dateRangeRow['first_date']) && $dateRangeRow['first_date'] != '0000-00-00') {
-            $trainingFrom = date("F d, Y", strtotime($dateRangeRow['first_date']));
-        }
-        if (!empty($dateRangeRow['last_date']) && $dateRangeRow['last_date'] != '0000-00-00') {
-            $trainingTo = date("F d, Y", strtotime($dateRangeRow['last_date']));
-        }
-    }
-    $dateRangeStmt->close();
-}
-*/
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $student_fn     = trim($_POST["student_fn"]);
