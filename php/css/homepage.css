@@ -772,7 +772,6 @@ body::before {
 .edit-profile-btn img,
 .logout-btn img,
 .new-entry-btn img,
-#printViewBtn img,
 .profile-photo-edit img {
   filter: invert(1) brightness(1.6) saturate(0) !important;
   display: inline-block;
@@ -780,8 +779,7 @@ body::before {
 }
 
 .edit-profile-btn img,
-.logout-btn img,
-#printViewBtn img { width:20px; height:20px; }
+.logout-btn img { width:20px; height:20px; }
 .new-entry-btn img { width:22px; height:22px; }
 
 .content-body {
@@ -1769,30 +1767,42 @@ body::before {
   border: 2px solid transparent;
 }
 
-#printViewBtn {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  width: 120px;
-  height: 30px;
-  border-radius: 5px;
-  background: linear-gradient(135deg, var(--primary-main), var(--primary-dark));
-  border: none;
-  color: var(--neutral-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  box-shadow: 0 10px 20px var(--shadow-color);
-  cursor: pointer;
-  z-index: 3000;
+/* Floating Printable View button */
+.floating-print-btn {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    display: none; /* hidden by default */
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #2c5e8f;
+    color: #fff;
+    border: none;
+    border-radius: 28px;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+    cursor: default; /* no function yet */
+    z-index: 1100; /* above content */
+    font-weight: 600;
+    letter-spacing: .2px;
 }
-
-#printViewBtn svg { display:block; }
-
-#printViewBtn:hover { transform: translateY(-3px); box-shadow: 0 14px 28px var(--shadow-color); }
-
-#printViewBtn:active { transform: translateY(0) !important; box-shadow: 0 10px 20px var(--shadow-color); }
+.floating-print-btn img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    filter: brightness(0) invert(1); /* make icon white if dark */
+}
+.floating-print-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.25);
+}
+@media (max-width: 600px) {
+    .floating-print-btn {
+        right: 16px;
+        bottom: 16px;
+        padding: 9px 12px;
+    }
+}
 
 .btn.cancel-outline {
   background: transparent;

@@ -48,7 +48,6 @@ try {
 } catch (Exception $e) {
     // swallow errors and fallback to current week
 }
-
 // ---------- AJAX: load_today / save_form ----------
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -634,6 +633,42 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         <link rel="stylesheet" href="css/homepage.css">
         <!-- Font Awesome for icons in the sidebar -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+                <style>
+                    /* Floating Printable View button */
+                    .floating-print-btn {
+                        position: fixed;
+                        right: 24px;
+                        bottom: 24px;
+                        display: none; /* hidden by default */
+                        align-items: center;
+                        gap: 10px;
+                        padding: 10px 14px;
+                        background: #2c5e8f;
+                        color: #fff;
+                        border: none;
+                        border-radius: 28px;
+                        box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+                        cursor: pointer;
+                        z-index: 5000; /* keep above overlays */
+                        font-weight: 600;
+                        letter-spacing: .2px;
+                        user-select: none;
+                        outline: none;
+                        transition: box-shadow 0.2s ease;
+                        will-change: transform;
+                    }
+                    .floating-print-btn img {
+                        width: 20px;
+                        height: 20px;
+                        object-fit: contain;
+                        filter: brightness(0) invert(1);
+                    }
+                    .floating-print-btn:hover { box-shadow: 0 14px 30px rgba(0,0,0,0.25); }
+                    .floating-print-btn:active { box-shadow: 0 10px 24px rgba(0,0,0,0.2); }
+                    @media (max-width: 600px) {
+                        .floating-print-btn { right: 16px; bottom: 16px; padding: 9px 12px; }
+                    }
+                </style>
 </head>
 <body>
   <div class="main-layout">
@@ -698,10 +733,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     </div>
     <div class="overlay" id="sidebarOverlay" style="display:none;"></div>
 
-    <!-- Floating Print Button (prints only the viewform, hidden by default) -->
-    <button id="printViewBtn" title="Print weekly view" onclick="printViewForm()" aria-label="Print weekly view" style="display:none;">
-        <img src="img/printer.png" alt="Print" style="width:15px;height:15px;vertical-align:middle"> <h4>Printable View</h4>
-    </button>
+    
 
         <!-- Scheduling Modal (empty content for now) -->
         <div class="modal" id="scheduleModal">
@@ -792,8 +824,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     </div>
   </div>
 
-        <!-- NOTE: The Edit Profile modal is relocated to be nested under the User Profile modal container so
-                 it can be opened from the profile picture edit overlay. The modal id remains `editProfileModal`. -->
+    <!-- Floating button (no function yet) -->
+    <button id="printableViewBtn" class="floating-print-btn" type="button" title="Printable View">
+        <img src="img/printer.png" alt="Printer"> Printable View
+    </button>
 
     <!-- User Profile Modal -->
     <div class="modal" id="userProfileModal" style="display:none;">
@@ -1097,11 +1131,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Enhanced button interactions
         const buttons = document.querySelectorAll('button, .btn');
         buttons.forEach(button => {
-            // Skip modal buttons and print button to prevent position changes
+            // Skip modal buttons to prevent position changes
             if (button.closest('#userProfileModal') || 
                 button.classList.contains('close-button') || 
                 button.classList.contains('profile-edit-overlay') ||
-                button.id === 'printViewBtn') {
+                button.id === 'printableViewBtn') {
                 return;
             }
 
@@ -1865,9 +1899,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const container = document.getElementById('viewform-container');
         if (!container) return;
 
-        // Show print button when viewform loads
-        const printBtn = document.getElementById('printViewBtn');
-        if (printBtn) printBtn.style.display = 'flex';
+        // Show printable button when viewform is being shown
+        try {
+            const pbtn = document.getElementById('printableViewBtn');
+            if (pbtn) pbtn.style.display = 'inline-flex';
+        } catch (e) { /* ignore */ }
+
+        
 
         // Ensure there's an inner wrapper we can safely replace without touching
         // the outer container's layout or event listeners.
@@ -2037,9 +2075,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             return;
         }
 
-        // Hide print button when analytics loads
-        const printBtn = document.getElementById('printViewBtn');
-        if (printBtn) printBtn.style.display = 'none';
+        // Hide printable button on analytics/dashboard
+        try {
+            const pbtn = document.getElementById('printableViewBtn');
+            if (pbtn) pbtn.style.display = 'none';
+        } catch (e) { /* ignore */ }
+
+        
 
         // Similar safe replace used by loadViewForm
         let inner = container.querySelector('.viewform-inner');
@@ -2244,6 +2286,30 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 home.classList.add('active-nav');
                 // load dashboard content (analytics)
                 try { loadAnalytics(); } catch (e) { console.warn('loadAnalytics failed, falling back to viewform', e); loadViewForm(currentWeekState.week, currentWeekState.range, currentWeekState.year); }
+            });
+        })();
+
+        // Printable View button -> open viewform in new tab with filled approved fields
+        (function() {
+            const btn = document.getElementById('printableViewBtn');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                try {
+                    const container = document.getElementById('viewform-container');
+                    const scope = container ? container : document;
+                    const nameEl = scope.querySelector('.viewform-inner .line-field.bold[contenteditable="true"], .line-field.bold[contenteditable="true"]');
+                    const titleEl = scope.querySelector('.viewform-inner .line-field[contenteditable="true"]:not(.bold), .line-field[contenteditable="true"]:not(.bold)');
+                    const approvedName = nameEl ? nameEl.textContent.trim() : '';
+                    const approvedTitle = titleEl ? titleEl.textContent.trim() : '';
+
+                    const url = `viewform.php?week=${encodeURIComponent(currentWeekState.week)}&year=${encodeURIComponent(currentWeekState.year)}&range=${encodeURIComponent(currentWeekState.range)}&approved_name=${encodeURIComponent(approvedName)}&approved_title=${encodeURIComponent(approvedTitle)}&print=1`;
+                    window.open(url, '_blank');
+                } catch (err) {
+                    console.error('Printable view error:', err);
+                    // Fallback: open with only week params
+                    const url = `viewform.php?week=${encodeURIComponent(currentWeekState.week)}&year=${encodeURIComponent(currentWeekState.year)}&range=${encodeURIComponent(currentWeekState.range)}&print=1`;
+                    window.open(url, '_blank');
+                }
             });
         })();
 
@@ -2523,74 +2589,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         try { loadTodayRecord(currentWeekState.week, currentWeekState.year); } catch (e) { console.error('loadTodayRecord error', e); }
     }
 
-    // Print function - open viewform.php in a new tab with live edits injected.
-    // User can view the form and press Ctrl+P to open print settings manually.
-    function printViewForm() {
-        try {
-            // Capture live container and date up-front so we can persist them
-            const container = document.getElementById('viewform-container');
-            const dateEl = document.getElementById('currentDateTime');
-            const dateHtml = dateEl ? dateEl.outerHTML : '';
-
-            // If we have a live container, build the printable HTML now
-            let contentHtml = '';
-            if (container) {
-                const clone = container.cloneNode(true);
-                const temp = document.createElement('div');
-                temp.appendChild(clone);
-
-                // Replace contenteditable elements with spans containing their textContent
-                const editableEls = temp.querySelectorAll('[contenteditable]');
-                editableEls.forEach(el => {
-                    const span = document.createElement('span');
-                    span.className = el.className || '';
-                    span.textContent = el.textContent || '';
-                    span.style.whiteSpace = 'pre-wrap';
-                    el.parentNode.replaceChild(span, el);
-                });
-
-                // Replace form controls (inputs, textarea, select) with spans showing their values
-                const fields = temp.querySelectorAll('input, textarea, select');
-                fields.forEach(f => {
-                    const span = document.createElement('span');
-                    span.className = f.className || '';
-                    let val = '';
-                    if (f.tagName.toLowerCase() === 'select') {
-                        try { val = f.options[f.selectedIndex] ? f.options[f.selectedIndex].text : ''; } catch (e) { val = f.value || ''; }
-                    } else {
-                        val = f.value || f.textContent || '';
-                    }
-                    span.textContent = val;
-                    span.style.whiteSpace = 'pre-wrap';
-                    f.parentNode.replaceChild(span, f);
-                });
-
-                contentHtml = temp.innerHTML;
-            }
-
-            // Save live HTML and date to sessionStorage so viewform.php can inject them
-            try {
-                if (typeof sessionStorage !== 'undefined') {
-                    sessionStorage.setItem('print_live_html', contentHtml || '');
-                    sessionStorage.setItem('print_live_date', dateHtml || '');
-                }
-            } catch (e) { /* ignore storage errors */ }
-
-            // Open viewform.php in a new tab with use_live=1 flag
-            const week = currentWeekState && currentWeekState.week ? currentWeekState.week : '';
-            const range = currentWeekState && currentWeekState.range ? currentWeekState.range : '';
-            const year = currentWeekState && currentWeekState.year ? currentWeekState.year : '';
-            const printUrl = 'viewform.php?week=' + encodeURIComponent(week) + 
-                            '&range=' + encodeURIComponent(range) + 
-                            '&year=' + encodeURIComponent(year) + 
-                            '&use_live=1&t=' + Date.now();
-            
-            window.open(printUrl, '_blank');
-        } catch (err) {
-            console.error('printViewForm error:', err);
-            alert('An error occurred preparing the print view. Please try again.');
-        }
-    }
+    
 
     function closeScheduleModal() {
         const modal = document.getElementById('scheduleModal');
@@ -2858,53 +2857,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             });
         })();
 
-        /* Print helper: replace inputs/textarea/select with plain spans during print so typed values are visible
-           and then restore them after printing. This works around browser inconsistencies in printing form fields. */
-        (function() {
-            const replaced = [];
-
-            function makeSpanFromField(field) {
-                const span = document.createElement('span');
-                span.className = 'print-replacement';
-                span.dataset._origTag = field.tagName.toLowerCase();
-                span.dataset._origHtml = field.outerHTML;
-                span.textContent = (field.value || '').toString();
-                // copy computed font styles for a closer visual match
-                const cs = window.getComputedStyle(field);
-                span.style.font = cs.font;
-                span.style.color = cs.color;
-                span.style.background = 'transparent';
-                span.style.whiteSpace = 'pre-wrap';
-                field.parentNode.replaceChild(span, field);
-                replaced.push({ field, span });
-            }
-
-            function restoreFields() {
-                while (replaced.length) {
-                    const { field, span } = replaced.pop();
-                    if (span.parentNode) span.parentNode.replaceChild(field, span);
-                }
-            }
-
-            function beforePrintHandler() {
-                // find inputs, textareas, selects inside the viewform area
-                const container = document.getElementById('viewform-container') || document.body;
-                const selectors = 'input[type=text], input[type=date], input[type=time], textarea, select';
-                const fields = Array.from(container.querySelectorAll(selectors));
-                fields.forEach(f => makeSpanFromField(f));
-            }
-
-            // Some browsers support beforeprint/afterprint; add both listeners
-            if (window.matchMedia) {
-                const mql = window.matchMedia('print');
-                mql.addListener((m) => { if (m.matches) beforePrintHandler(); else restoreFields(); });
-            }
-            window.addEventListener('beforeprint', beforePrintHandler);
-            window.addEventListener('afterprint', restoreFields);
-            // Also fallback: if user triggers print via JS, wrap window.print
-            const originalPrint = window.print;
-            window.print = function() { beforePrintHandler(); setTimeout(() => { originalPrint.call(window); setTimeout(restoreFields, 300); }, 60); };
-        })();
+        
     </script>
 </body>
 </html>
