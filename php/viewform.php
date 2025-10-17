@@ -13,6 +13,8 @@ $user_id = $_SESSION["user_id"];
 $selectedWeek = isset($_GET["week"]) ? intval($_GET["week"]) : 0;
 $weekRange = isset($_GET["range"]) ? $_GET["range"] : "";
 $selectedYear = isset($_GET["year"]) ? intval($_GET["year"]) : date('Y');
+$approvedName = isset($_GET["approved_name"]) ? trim($_GET["approved_name"]) : '';
+$approvedTitle = isset($_GET["approved_title"]) ? trim($_GET["approved_title"]) : '';
 
 // If no week selected, use current week
 if ($selectedWeek === 0) {
@@ -421,9 +423,23 @@ if (!$isAjax): ?>
 <head>
     <title>Weekly Accomplishment Report</title>
     <link rel="stylesheet" href="css/viewform.css">
+    <?php if (isset($_GET['print']) && $_GET['print'] == '1'): ?>
+    <style>
+        body {
+            padding: 20px 40px;
+            margin: 0;
+        }
+        .viewform-container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+    </style>
+    <?php endif; ?>
 </head>
 <body>
 <?php endif; ?>
+
+<?php $isPrint = isset($_GET['print']) && $_GET['print'] == '1'; ?>
 
 <div class="viewform-container">
     <div class="header-container" style="display: flex; justify-content: center; align-items: center; gap: 20px; position: relative;">
@@ -530,10 +546,8 @@ if (!$isAjax): ?>
   </div>
 </div>
 
-  <div class="warning-text">
-      Any alterations/erasures will consider<br>
-      null and void unless with countersign<br>
-      of immediate supervisor.
+  <div class="warning-text"<?php if ($isPrint) echo ' style="position:absolute;top:0;right:0;font-size:11px;max-width:220px;text-align:right;line-height:1.3;margin-top:-160px;background:#fff;padding:2px 6px;border-radius:4px;z-index:10;"'; ?>>
+      Any alterations/erasures will consider null and void unless with countersign of immediate supervisor.
   </div>
 
 <!-- Rest of your HTML table and signature sections remain the same -->
@@ -587,23 +601,35 @@ if (!$isAjax): ?>
   </tr>
 </table>
 
-<div class="signature-container">
+<div class="signature-container"<?php if ($isPrint) echo ' style="margin-top:18px;margin-bottom:0;"'; ?>>
     <div class="signature-block">
         <p class="bold">Prepared by:</p>
         <br><br>
+        <?php if (isset($isPrint) && $isPrint): ?>
+        <p class="bold" style="margin: 0; border-bottom: none;"><?= htmlspecialchars($name) ?></p>
+        <?php else: ?>
         <p class="line-field bold"><?= htmlspecialchars($name) ?></p>
+        <?php endif; ?>
         <p>OJT Trainee</p>
-    <p>Date: <span contenteditable="true"><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span></p>
+    <p>Date: <?php if (isset($isPrint) && $isPrint): ?><span><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span><?php else: ?><span contenteditable="true"><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span><?php endif; ?></p>
     </div>
 
 
     <div class="signature-block">
         <p class="bold">Approved by:</p>
         <br><br>
-        <p contenteditable="true" class="line-field bold" data-placeholder="Type name here...">&nbsp;</p>
+        <?php if (isset($isPrint) && $isPrint): ?>
+        <p class="bold" style="margin: 0; border-bottom: none;">
+        <?php else: ?>
+        <p contenteditable="true" class="line-field bold" data-placeholder="Type name here...">
+        <?php endif; ?><?= $approvedName !== '' ? htmlspecialchars($approvedName) : '' ?></p>
+        <?php if (isset($isPrint) && $isPrint): ?>
+        <p class="" style="margin: 0; border-bottom: none;">
+        <?php else: ?>
         <br>
-        <p contenteditable="true" class="line-field" data-placeholder="Type title here...">&nbsp;</p>
-    <p>Date: <span contenteditable="true"><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span></p>
+        <p contenteditable="true" class="line-field" data-placeholder="Type title here...">
+        <?php endif; ?><?= $approvedTitle !== '' ? htmlspecialchars($approvedTitle) : '' ?></p>
+    <p>Date: <?php if (isset($isPrint) && $isPrint): ?><span><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span><?php else: ?><span contenteditable="true"><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span><?php endif; ?></p>
     </div>
 
     <div class="signature-block">
@@ -611,7 +637,7 @@ if (!$isAjax): ?>
         <br><br>
         <p class="bold">Isagani M. Tano, PhD-ELM, DIT</p>
         <p>OJT Adviser</p>
-    <p>Date: <span contenteditable="true"><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span></p>
+    <p>Date: <?php if (isset($isPrint) && $isPrint): ?><span><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span><?php else: ?><span contenteditable="true"><?= htmlspecialchars(date('F d, Y', strtotime($weekDates['FRI']))) ?></span><?php endif; ?></p>
     </div>
 </div>
 

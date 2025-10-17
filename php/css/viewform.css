@@ -342,7 +342,8 @@
 .viewform-container .signature-container {
     display: flex;
     justify-content: space-between;
-    margin-top: 40px; /* slightly reduced whitespace before signatures */
+    margin-top: 40px; /* restore original for homepage */
+    margin-bottom: 0;
 }
 
 .viewform-container .signature-block {
@@ -357,7 +358,7 @@
 
 /* Warning Text */
 .viewform-container .header-section .warning-text {
-    position: absolute; /* positioned relative to .header-section */
+    position: absolute; /* restore original for homepage */
     top: -200px; /* slightly below the header top */
     right: 2px; /* place it left of the week-number box (adjustable) */
     font-size: 11px;
@@ -384,153 +385,6 @@
   position: relative;
 }
 
-/* Print adjustments: legal landscape with minimal margins to reduce white space */
-@media print {
-    /* Use minimal page margins to maximize content area */
-    @page { size: 13in 8.5in; margin: 0.3in; }
-
-    /* Ensure the viewform container has no extra margins/padding in print */
-    #viewform-container, .viewform-container {
-        margin: 0 !important;
-        padding: 0 !important;
-        box-sizing: border-box;
-    }
-  
-    /* Warning / top-right note - on-screen */
-    #warning-text, .warning-text, .top-right-note, .header-note {
-        position: absolute; /* place relative to the viewform container */
-        top: 12px; /* small offset from top */
-        right: 12px; /* small offset from right */
-        max-width: 220px;
-        text-align: right;
-        font-size: 12px;
-        line-height: 1.1;
-        color: #222;
-        z-index: 5;
-    }
-
-    /* Place warning text inside printable area: use relative positioning and reduced font */
-    #warning-text, .warning-text, .top-right-note, .header-note {
-        position: relative !important;
-        float: right;
-        display: block;
-        margin-top: 20px; /* keep inside the header area */
-        margin-right: 0.25in; /* small gap from the right page margin */
-        max-width: 180px;
-        font-size: 10px !important;
-        color: #000;
-        line-height: 1.05;
-    }
-
-    /* Ensure absolute/fixed elements inside the viewform are laid out in normal flow */
-    #viewform-container * {
-        position: static !important;
-    }
-
-    /* Global print reductions to fit one page */
-    body, #viewform-container, .viewform-container { font-size: 10px !important; color: #000 !important; }
-
-    /* Make header logos smaller for print */
-    .viewform-container .header-logo img { width: 60px !important; }
-
-    /* Restore Official Time box in print and place it inside printable margins */
-    .viewform-container .official-time {
-        display: block !important;
-        position: absolute !important;
-        left: 0.18in !important;
-        top: 0.10in !important;
-        font-size: 13px !important;
-        text-align: left !important;
-    }
-
-    /* Tighten table spacing and fonts */
-    .viewform-container table, .viewform-table { font-size: 9px !important; }
-    .viewform-container th, .viewform-container td, .viewform-table th, .viewform-table td { padding: 3px 4px !important; }
-
-    /* Lower the Week No. block (it was positioned too high) */
-    #week-number {
-        position: absolute !important;
-        right: 1.5in !important;
-        top: -85px !important; /* bring it down */
-        text-align: center !important;
-    }
-
-    /* Reduce spacing between header info (Name/Company/Course) and table */
-    .viewform-container .header-section { padding-top: 0 !important; margin-bottom: 2px !important; }
-    .viewform-container .header-info-grid { margin: 2px auto 2px auto !important; }
-    /* Remove extra gap above the table so header info sits closer */
-    .viewform-container table { margin-top: 0 !important; }
-
-    /* Add more space between the table and signature area in print */
-    .viewform-container .signature-container { margin-top: 28px !important; }
-
-    /* Slightly reduce header/title spacing */
-    .viewform-container .header-container { gap: 6px !important; }
-    .viewform-container .header-text h1 { font-size: 16px !important; }
-    .viewform-container .header-text h2 { font-size: 14px !important; }
-
-    /* Reduce signature font but keep larger gap between table and signatures */
-    .viewform-container .signature-container { margin-top: 28px !important; }
-    .viewform-container .signature-block { font-size: 10px !important; }
-
-    /* Reduce any margins around the table to use vertical space */
-    .viewform-container table { margin: 0 0 !important; }
-
-    /* Ensure table will not break awkwardly across pages; keep rows compact */
-    tr, td, th { page-break-inside: avoid !important; }
-
-    /* Print-friendly inputs: show their values as plain text (no borders/background) */
-    .viewform-container input,
-    .viewform-container input[type="text"],
-    .viewform-container input[type="date"],
-    .viewform-container input[type="time"],
-    .viewform-container textarea,
-    .viewform-container select,
-    #viewform-container input,
-    #viewform-container textarea,
-    #viewform-container select {
-        border: none !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        font: inherit !important;
-        color: inherit !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    }
-
-    /* Remove underline styling in print for visual fields that mimic underlines */
-    .viewform-container .underline,
-    .viewform-container .line-field,
-    .viewform-container .line-field-auto,
-    #viewform-container .underline,
-    #viewform-container .line-field,
-    #viewform-container .line-field-auto {
-        border-bottom: none !important;
-        padding-bottom: 0 !important;
-        background: transparent !important;
-    }
-}
-
-/* Re-enable underlines specifically for the header fields when printing
-   (Name, Company, Course, Year, Training Period) so the printed form shows lines */
-@media print {
-    .viewform-container .header-info-grid .underline,
-    .viewform-container .header-info-grid .underline.small,
-    .viewform-container .header-info-grid .underline.tiny,
-    .viewform-container .header-info-grid .line-field,
-    .viewform-container .header-info-grid .line-field-auto,
-    #viewform-container .header-info-grid .underline,
-    #viewform-container .header-info-grid .line-field,
-    #viewform-container .header-info-grid .line-field-auto {
-        border-bottom: 1px solid #000 !important;
-        padding: 0 2px !important;
-        display: inline-block !important;
-        background: transparent !important;
-        box-sizing: border-box !important;
-    }
-}
 
 /* Ensure logout modal is on top and clickable */
 #logoutModal,
@@ -562,70 +416,62 @@
   pointer-events: auto !important;
 }
 
-/* Additional print overrides: ensure live date/time and replacement spans are visible when printing */
+
 @media print {
-    /* Hide the live date/time in print view */
-    #currentDateTime {
-        display: none !important;
-    }
-
-    /* Ensure spans that replaced inputs/contenteditable look like plain text */
-    .print-replacement, .print-replacement * {
-        background: transparent !important;
-        color: #000 !important;
-        print-color-adjust: exact !important;
-        -webkit-print-color-adjust: exact !important;
-    }
-
-    /* Avoid hiding contenteditable replacements accidentally */
-    [contenteditable], [contenteditable] * {
-        background: transparent !important;
-        color: #000 !important;
-    }
-
-    /* Reduce unnecessary spacing in print to maximize content area */
-    .viewform-container {
-        padding: 0 !important;
-        margin: 0.25in 0 0 0 !important; /* add top margin to prevent cutoff */
-    }
-
-    .viewform-container h1, 
-    .viewform-container h2, 
-    .viewform-container h3 {
-        margin: 2px 0 !important;
-        line-height: 1.1 !important;
-    }
-
-    .viewform-container .header-container {
-        gap: 8px !important;
+    body, html {
+        width: 100vw !important;
+        min-width: 0 !important;
+        max-width: 100vw !important;
         margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        background: #fff !important;
     }
+    .viewform-container {
+        box-sizing: border-box !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        margin: 0 auto !important;
+        padding: 20px 40px !important;
+        background: #fff !important;
+        overflow: visible !important;
+    }
+    .header-section .warning-text {
+        position: absolute !important;
+        top: 0 !important;
+        right: 0 !important;
+        font-size: 11px !important;
+        max-width: 220px !important;
+        text-align: right !important;
+        line-height: 1.3 !important;
+        background: #fff !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        z-index: 10 !important;
+    }
+    .signature-container {
+        margin-top: 18px !important;
+        margin-bottom: 0 !important;
+    }
+    table {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        font-size: 11px !important;
+    }
+    th, td {
+        font-size: 11px !important;
+        padding: 6px 8px !important;
+        box-sizing: border-box !important;
+    }
+    .header-logo img {
+        width: 90px !important;
+        height: auto !important;
+    }
+}
 
-    .viewform-container .header-section {
-        margin: 4px 0 2px 0 !important;
-        padding-top: 5px !important;
-    }
-
-    .viewform-container .header-info-grid {
-        gap: 4px 16px !important;
-        margin: 4px auto 6px auto !important;
-    }
-
-    .viewform-container table {
-        margin: 3px 0 !important;
-        font-size: 10px !important;
-    }
-
-    .viewform-container th, 
-    .viewform-container td {
-        padding: 3px 4px !important;
-    }
-
-    .viewform-container .signature-container {
-        margin-top: 20px !important;
-    }
-
-    .viewform-container .signature-block p {
-        margin: 3px 0 !important;
-    }
+@page {
+    size: auto;
+    margin: 20mm 15mm 15mm 15mm;
 }
