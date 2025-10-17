@@ -859,8 +859,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     <div class="modal-content">
       <h2>Select Week to View</h2>
       <div class="week-select">
-        <select id="weekDropdown" onchange="selectWeekDropdown(this.value)">
-          <option value="" disabled selected>-- Select Week --</option>
+        <select id="weekDropdown">
+          <option value="" disabled>-- Select Week --</option>
           <?php
           // Compute initial week range from users.created_at when available.
           // If not available, fall back to any server-provided $initialRangeStart, then to earliest recorded date, then to project start.
@@ -987,8 +987,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           ?>
         </select>
       </div>
-      <div style="display:flex; justify-content:center; margin-top:20px;">
-        <button class="btn cancel-red-outline" onclick="closeWeekModal()">Exit</button>
+      <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
+        <button class="submit-btn primary-save" onclick="loadSelectedWeek()">Load Week</button>
+        <button class="btn cancel-red-outline" onclick="closeWeekModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -1295,6 +1296,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         @keyframes successFlash {
             0%, 100% { background-color: transparent; }
             50% { background-color: rgba(40, 167, 69, 0.2); }
+        }
+        
+        /* Viewform transition blink effect */
+        .viewform-inner {
+            transition: opacity 0.1s ease-in-out;
+        }
+        
+        @keyframes viewformBlink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
         }
     `;
     document.head.appendChild(animationStyles);
@@ -1823,6 +1835,26 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         currentWeekState.year = year;
         currentWeekState.range = range;
        
+        // Always load the selected week (even if it's the same as currently displayed)
+        loadViewForm(weekNum, range, year);
+        closeWeekModal();
+    }
+
+    // Function to manually trigger week load (called when clicking already-selected option)
+    function loadSelectedWeek() {
+        const dropdown = document.getElementById('weekDropdown');
+        if (!dropdown || dropdown.selectedIndex < 0) return;
+        
+        const selected = dropdown.options[dropdown.selectedIndex];
+        const weekNum = selected.value;
+        const range = selected.getAttribute('data-range');
+        const year = selected.getAttribute('data-year');
+        
+        // Update current state
+        currentWeekState.week = weekNum;
+        currentWeekState.year = year;
+        currentWeekState.range = range;
+        
         // Load the selected week
         loadViewForm(weekNum, range, year);
         closeWeekModal();
@@ -1847,6 +1879,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             container.innerHTML = '';
             container.appendChild(inner);
         }
+
+        // Add blink transition effect before loading new content
+        inner.style.transition = 'opacity 0.1s ease-in-out';
+        inner.style.opacity = '0';
 
         // Immediately fetch and replace content asynchronously while keeping current UI visible
         const previousHtml = inner.innerHTML; // keep a backup in case of errors
@@ -1913,11 +1949,16 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     }
 
                     // Replace inner content when fetched and when styles have (likely) loaded.
-                    // We still wait briefly for styles to reduce flash, but we won't hide existing UI.
-                    const timeout = new Promise(resolve => setTimeout(resolve, 300));
+                    // Quick transition for snappy feel
+                    const timeout = new Promise(resolve => setTimeout(resolve, 100));
                     Promise.all([Promise.all(loadPromises), timeout]).then(() => {
                         // Replace inner content now that styles are (likely) applied
                         inner.innerHTML = newHtml;
+                        
+                        // Fade in the new content with blink effect - immediate
+                        requestAnimationFrame(() => {
+                            inner.style.opacity = '1';
+                        });
                         // Execute any scripts present in the fetched fragment
                         try {
                             const scriptNodes = Array.from(doc.querySelectorAll('script'));
@@ -2658,7 +2699,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
   // AFK Timer - Auto logout after inactivity
   (function() {
-    const AFK_TIMEOUT = 2 * 60 * 1000; // 1 minute in milliseconds (you can adjust this)
+    const AFK_TIMEOUT = 2 * 60 * 1000; 
     let afkTimer;
     let afkModalShown = false;
 
