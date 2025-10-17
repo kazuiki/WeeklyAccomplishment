@@ -700,7 +700,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     <!-- Floating Print Button (prints only the viewform, hidden by default) -->
     <button id="printViewBtn" title="Print weekly view" onclick="printViewForm()" aria-label="Print weekly view" style="display:none;">
-        <img src="img/printer.png" alt="Print" style="width:20px;height:20px;vertical-align:middle">
+        <img src="img/printer.png" alt="Print" style="width:15px;height:15px;vertical-align:middle"> <h4>Printable View</h4>
     </button>
 
         <!-- Scheduling Modal (empty content for now) -->
