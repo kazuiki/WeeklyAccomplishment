@@ -399,6 +399,61 @@ if (!$isAjax): ?>
 <head>
     <title>Weekly Accomplishment Report</title>
     <link rel="stylesheet" href="css/viewform.css">
+    <style>
+        /* Print margins: add small margins to prevent content from being too close to edges */
+        @page {
+            margin: 0.5in 0.25in 0.25in 0.25in; /* top right bottom left */
+        }
+        
+        /* Ensure body has no extra margins in print */
+        @media print {
+            body {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .viewform-container {
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+            }
+        }
+        
+        /* Make week-number responsive */
+        #week-number {
+            position: absolute;
+            right: 15%;
+            top: -130px;
+            text-align: center;
+            min-width: 150px;
+            z-index: 20;
+        }
+        
+        @media (max-width: 1200px) {
+            #week-number {
+                right: 10%;
+                top: -120px;
+            }
+        }
+        
+        @media (max-width: 900px) {
+            #week-number {
+                right: 5%;
+                top: -110px;
+                font-size: 0.9em;
+            }
+        }
+        
+        @media (max-width: 600px) {
+            #week-number {
+                position: relative;
+                right: auto;
+                top: auto;
+                text-align: center;
+                margin: 10px auto;
+                display: block;
+            }
+        }
+    </style>
     <?php if (isset($_GET['print']) && $_GET['print'] == '1'): ?>
     <style>
         body {
@@ -477,7 +532,7 @@ if (!$isAjax): ?>
 
 <br>
 <div class="header-section" style="position: relative;">
-  <div id="week-number" style="position: absolute; right: 250px; top: -130px; text-align: center;">
+  <div id="week-number">
   <div style="min-width: 150px;">
     <!-- Date Range -->
     <div style="font-size: 12px; margin-bottom: 3px;">
