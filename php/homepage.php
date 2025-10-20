@@ -169,6 +169,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                 error_log("$key: " . ($_POST[$key] ?? 'NOT SET'));
             }
 
+            // Server-side validation for Time-In (AM only) and Time-Out (PM only)
+            if (isset($_POST['time_in']) && !empty($_POST['time_in'])) {
+                $timeIn = $_POST['time_in'];
+                list($hours, $minutes) = explode(':', $timeIn);
+                $hours = (int)$hours;
+                
+                if ($hours >= 12) {
+                    echo json_encode(['success' => false, 'message' => 'Time-In must be AM only (12:00 AM - 11:59 AM)']);
+                    exit;
+                }
+            }
+
+            if (isset($_POST['time_out']) && !empty($_POST['time_out'])) {
+                $timeOut = $_POST['time_out'];
+                list($hours, $minutes) = explode(':', $timeOut);
+                $hours = (int)$hours;
+                
+                if ($hours < 12) {
+                    echo json_encode(['success' => false, 'message' => 'Time-Out must be PM only (12:00 PM - 11:59 PM)']);
+                    exit;
+                }
+            }
+
             // Detect whether the DB has the day_date_real column (non-destructive check)
             $has_day_date_real = false;
             try {
@@ -1006,10 +1029,12 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           <div class="form-group">
             <label for="time-in">Time-In:</label>
             <input type="time" id="time-in" name="time_in" required value="<?= htmlspecialchars($existing['time_in'] ?? '') ?>">
+            <div id="time-in-error" style="color: #e74c3c; font-size: 12px; margin-top: 2px; display: none;"></div>
           </div>
           <div class="form-group">
             <label for="time-out">Time-Out:</label>
             <input type="time" id="time-out" name="time_out" required value="<?= htmlspecialchars($existing['time_out'] ?? '') ?>">
+            <div id="time-out-error" style="color: #e74c3c; font-size: 12px; margin-top: 2px; display: none;"></div>
           </div>
         </div>
                 <!-- Total hours computed display removed per request -->
@@ -1021,12 +1046,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           </div>
         </div>
 
+        <p id="formMessage" style="margin: 8px 0 0 0;"></p>
+
                         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
                             <button type="submit" id="submit-button" class="submit-btn primary-save">Submit</button>
                             <button class="btn cancel-red-outline" onclick="closeFillModal()">Close</button>
                         </div>
       </form>
-      <p id="formMessage"></p>
     </div>
   </div>
 
@@ -1376,6 +1402,67 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         return (capped ? '8:00' : (h + ':' + String(m).padStart(2, '0')));
     }
 
+    // Validation functions for Time-In (AM only) and Time-Out (PM only)
+    function validateTimeIn() {
+        const timeInEl = document.getElementById('time-in');
+        const errorEl = document.getElementById('time-in-error');
+        if (!timeInEl || !errorEl) return true;
+
+        const value = timeInEl.value;
+        if (!value) {
+            errorEl.style.display = 'none';
+            return true;
+        }
+
+        // Parse time value (HH:MM format)
+        const [hours, minutes] = value.split(':').map(Number);
+        
+        // Time-In must be AM (00:00 to 11:59)
+        if (hours >= 12) {
+            errorEl.textContent = '⚠ Time-In must be AM only (12:00 AM - 11:59 AM)';
+            errorEl.style.display = 'block';
+            timeInEl.style.borderColor = '#e74c3c';
+            return false;
+        }
+
+        errorEl.style.display = 'none';
+        timeInEl.style.borderColor = '';
+        return true;
+    }
+
+    function validateTimeOut() {
+        const timeOutEl = document.getElementById('time-out');
+        const errorEl = document.getElementById('time-out-error');
+        if (!timeOutEl || !errorEl) return true;
+
+        const value = timeOutEl.value;
+        if (!value) {
+            errorEl.style.display = 'none';
+            return true;
+        }
+
+        // Parse time value (HH:MM format)
+        const [hours, minutes] = value.split(':').map(Number);
+        
+        // Time-Out must be PM (12:00 to 23:59)
+        if (hours < 12) {
+            errorEl.textContent = '⚠ Time-Out must be PM only (12:00 PM - 11:59 PM)';
+            errorEl.style.display = 'block';
+            timeOutEl.style.borderColor = '#e74c3c';
+            return false;
+        }
+
+        errorEl.style.display = 'none';
+        timeOutEl.style.borderColor = '';
+        return true;
+    }
+
+    function validateAllTimes() {
+        const timeInValid = validateTimeIn();
+        const timeOutValid = validateTimeOut();
+        return timeInValid && timeOutValid;
+    }
+
 
     // Before submitting, normalize time-out when needed so server TIMESTAMPDIFF(HOUR,...) stores correct capped value.
     // If computed duration >= 8 hours, set time-out = time-in + 8:00. Also normalize overnight by allowing next-day times.
@@ -1589,46 +1676,67 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     // Quick action implementations
     function setSameScheduleAllDays() {
-        // copy monday values into other days
+        // Copy Monday values into all other days (Tue-Sat, and Sun if present)
         const monStart = document.getElementById('official-mon-am') ? document.getElementById('official-mon-am').value : '';
         const monEnd = document.getElementById('official-mon-pm') ? document.getElementById('official-mon-pm').value : '';
-    if (!monStart && !monEnd) { /* nothing to copy */ return; }
-        ['tue','wed','thu','fri','sat'].forEach(day => {
+        if (!monStart && !monEnd) { /* nothing to copy */ return; }
+        ['tue','wed','thu','fri','sat','sun'].forEach(day => {
             const a = document.getElementById(`official-${day}-am`);
             const b = document.getElementById(`official-${day}-pm`);
-            if (a) { a.value = monStart; }
-            if (b) { b.value = monEnd; }
+            if (a) a.value = monStart;
+            if (b) b.value = monEnd;
             updateDayDisplay(day);
             updateHidden(day);
         });
-    // feedback: no confirmation popup (inline updates applied)
     }
 
     function setWeekdaysOnly() {
-        const start = '9:00 AM';
-        const end = '5:00 PM';
+        // Use Monday's values as the source
+        const monStart = document.getElementById('official-mon-am') ? document.getElementById('official-mon-am').value : '';
+        const monEnd = document.getElementById('official-mon-pm') ? document.getElementById('official-mon-pm').value : '';
+        if (!monStart && !monEnd) { /* nothing to copy */ return; }
+        // Set Monday–Friday to Monday's value
         ['mon','tue','wed','thu','fri'].forEach(day => {
             const a = document.getElementById(`official-${day}-am`);
             const b = document.getElementById(`official-${day}-pm`);
-            if (a) a.value = start;
-            if (b) b.value = end;
+            if (a) a.value = monStart;
+            if (b) b.value = monEnd;
             updateDayDisplay(day);
             updateHidden(day);
         });
-    // feedback: no confirmation popup (inline updates applied)
+        // Clear Saturday and Sunday if present
+        ['sat','sun'].forEach(day => {
+            const a = document.getElementById(`official-${day}-am`);
+            const b = document.getElementById(`official-${day}-pm`);
+            if (a) a.value = '';
+            if (b) b.value = '';
+            updateDayDisplay(day);
+            updateHidden(day);
+        });
     }
 
     function setWeekendOnly() {
-        const start = '10:00 AM';
-        const end = '2:00 PM';
-        const day = 'sat';
-        const a = document.getElementById(`official-${day}-am`);
-        const b = document.getElementById(`official-${day}-pm`);
-        if (a) a.value = start;
-        if (b) b.value = end;
-        updateDayDisplay(day);
-        updateHidden(day);
-    // feedback: no confirmation popup (inline updates applied)
+        // Use Monday's values as the source
+        const monStart = document.getElementById('official-mon-am') ? document.getElementById('official-mon-am').value : '';
+        const monEnd = document.getElementById('official-mon-pm') ? document.getElementById('official-mon-pm').value : '';
+        // Set only Saturday to Monday's value
+        ['sat'].forEach(day => {
+            const a = document.getElementById(`official-${day}-am`);
+            const b = document.getElementById(`official-${day}-pm`);
+            if (a) a.value = monStart;
+            if (b) b.value = monEnd;
+            updateDayDisplay(day);
+            updateHidden(day);
+        });
+        // Clear Monday–Friday and Sunday (if present)
+        ['mon','tue','wed','thu','fri','sun'].forEach(day => {
+            const a = document.getElementById(`official-${day}-am`);
+            const b = document.getElementById(`official-${day}-pm`);
+            if (a) a.value = '';
+            if (b) b.value = '';
+            updateDayDisplay(day);
+            updateHidden(day);
+        });
     }
 
     function clearAllSchedules() {
@@ -2269,8 +2377,34 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Enhanced Form submission with animations
         const accomplishmentForm = document.getElementById("accomplishmentForm");
         if (accomplishmentForm) {
+            // Add live validation listeners for Time-In and Time-Out
+            const timeInEl = document.getElementById('time-in');
+            const timeOutEl = document.getElementById('time-out');
+            
+            if (timeInEl) {
+                timeInEl.addEventListener('change', validateTimeIn);
+                timeInEl.addEventListener('blur', validateTimeIn);
+            }
+            if (timeOutEl) {
+                timeOutEl.addEventListener('change', validateTimeOut);
+                timeOutEl.addEventListener('blur', validateTimeOut);
+            }
+
             accomplishmentForm.addEventListener("submit", function(e) {
                 e.preventDefault();
+               
+                // Validate times before submission
+                if (!validateAllTimes()) {
+                    const msg = document.getElementById("formMessage");
+                    if (msg) {
+                        msg.textContent = "❌ Please fix the time validation errors before submitting.";
+                        msg.style.color = "#e74c3c";
+                        msg.style.fontSize = "11px";
+                        msg.style.display = "block";
+                        setTimeout(() => { msg.style.display = "none"; }, 5000);
+                    }
+                    return;
+                }
                
                 const submitBtn = document.getElementById('submit-button');
                 const msg = document.getElementById("formMessage");
