@@ -511,6 +511,21 @@ $conn->close();
 .field-validation:empty { display: none; }
 /* Ensure input group keeps left alignment for validation */
 .input-group.float { position: relative; }
+
+/* Typewriter cursor animation */
+.typewriter-cursor {
+    display: inline-block;
+    width: 3px;
+    height: 65px;
+    background-color: currentColor;
+    margin-left: 2px;
+    vertical-align: baseline;
+    animation: blink 0.7s infinite;
+}
+@keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
 </style>
 </head>
 <body>
@@ -518,7 +533,7 @@ $conn->close();
 <div class="auth-layout">
     <section class="hero">
         <div class="hero-content">
-            <h1><span>BSIT OJT</span><br>ACTIVITY LOG</h1>
+            <h1><span id="typewriter-line1"></span><br><span id="typewriter-line2"></span></h1>
             <p class="hero-sub">— your portal for tracking daily tasks, progress, and milestones throughout your training.</p>
             <div class="hero-logos">
                 <img src="img/qcu.png" alt="QCU"/>
@@ -1254,6 +1269,51 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Typewriter animation for hero title with blinking cursor
+    const line1 = document.getElementById('typewriter-line1');
+    const line2 = document.getElementById('typewriter-line2');
+    const text1 = 'BSIT OJT';
+    const text2 = 'ACTIVITY LOG';
+    let i1 = 0, i2 = 0;
+    const cursor = '<span class="typewriter-cursor"></span>';
+    
+    function typeWriter() {
+        // Reset both lines
+        if (line1) line1.innerHTML = cursor; // Start with cursor on line 1
+        if (line2) line2.innerHTML = '';
+        i1 = 0;
+        i2 = 0;
+        
+        // Type first line
+        const timer1 = setInterval(() => {
+            if (i1 < text1.length) {
+                line1.innerHTML = text1.substring(0, i1 + 1) + cursor;
+                i1++;
+            } else {
+                clearInterval(timer1);
+                // Move cursor to line 2 and start typing
+                line1.innerHTML = text1; // Remove cursor from line 1
+                line2.innerHTML = cursor; // Add cursor to line 2
+                
+                const timer2 = setInterval(() => {
+                    if (i2 < text2.length) {
+                        line2.innerHTML = text2.substring(0, i2 + 1) + cursor;
+                        i2++;
+                    } else {
+                        clearInterval(timer2);
+                        // Keep cursor blinking at the end for 2 seconds
+                        setTimeout(() => {
+                            typeWriter();
+                        }, 2000);
+                    }
+                }, 100);
+            }
+        }, 100);
+    }
+    
+    // Start typewriter effect
+    typeWriter();
 });
 </script>
 </body>
