@@ -48,7 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
             } elseif ($verification_code != $_SESSION["verification_code"]) {
                 $response = [ 'ok' => false, 'message' => 'Invalid verification code!' ];
             } else {
-                $response = [ 'ok' => true, 'message' => 'Code verified. You can set a new password.' ];
+                $response = [ 'ok' => true, 'message' => '' ];
             }
         } else {
             $response = [ 'ok' => false, 'message' => 'Username not found!' ];
@@ -498,6 +498,20 @@ $conn->close();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Login Page</title>
 <link rel="stylesheet" href="css/style.css">
+<style>
+/* Inline field validation messages: small, left-aligned, red */
+.field-validation {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.2;
+    color: #c62828; /* red tone */
+    text-align: left;
+    min-height: 0; /* don't force height when empty */
+}
+.field-validation:empty { display: none; }
+/* Ensure input group keeps left alignment for validation */
+.input-group.float { position: relative; }
+</style>
 </head>
 <body>
 <div id="errorNotification" class="error-notification" aria-live="polite"></div>
@@ -565,10 +579,12 @@ $conn->close();
             <div class="input-group float">
                 <input type="password" id="signup-password" name="signup_password" placeholder=" " required>
                 <label for="signup-password">Password</label>
+                <div class="field-validation" id="signup-password-error"></div>
             </div>
             <div class="input-group float">
                 <input type="password" id="signup-confirm-password" name="signup_confirm_password" placeholder=" " required>
                 <label for="signup-confirm-password">Confirm Password</label>
+                <div class="field-validation" id="signup-confirm-error"></div>
             </div>
             <button type="submit" class="btn primary" id="signupSubmit">Submit</button>
         </form>
@@ -637,17 +653,19 @@ $conn->close();
             <div class="input-group float">
                 <input type="text" id="verification-code" name="verification_code" placeholder=" " required>
                 <label for="verification-code">Verification Code</label>
+                <div class="field-validation" id="verification-code-status"></div>
             </div>
             <!-- New Password fields always visible; server validates OTP on submit -->
             <div id="newPasswordFields">
                 <div class="input-group float">
-                    <input type="password" id="new-password" name="new_password" placeholder=" ">
+                    <input type="password" id="new-password" name="new_password" placeholder=" " disabled>
                     <label for="new-password">Password</label>
+                    <div class="field-validation" id="recovery-password-error"></div>
                 </div>
                 <div class="input-group float">
-                    <input type="password" id="confirm-password" name="confirm_password" placeholder=" ">
+                    <input type="password" id="confirm-password" name="confirm_password" placeholder=" " disabled>
                     <label for="confirm-password">Confirm Password</label>
-                    <div class="password-validation" id="password-validation">Password don't match</div>
+                    <div class="field-validation" id="recovery-confirm-error"></div>
                 </div>
             </div>
             <?php if (!empty($changePasswordError)) { ?>    
@@ -804,10 +822,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.ok) {
                     showFloatingNotification(data.message || 'Verification code sent to your email', 'success');
-                    // Enable password fields after successful code send
-                    document.getElementById('new-password').disabled = false;
-                    document.getElementById('confirm-password').disabled = false;
-                    
+                    // Do NOT enable password fields here; they will be enabled after code verification
                     // Start countdown timer
                     let timeLeft = 60;
                     this.disabled = true;
@@ -834,6 +849,104 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.textContent = originalText;
             });
         });
+    }
+});
+
+// Password validation helpers
+function validatePasswordRules(pwd) {
+    const rules = {
+        length: pwd.length >= 8,
+        uppercase: /[A-Z]/.test(pwd),
+        special: /[^A-Za-z0-9]/.test(pwd)
+    };
+    return { ok: rules.length && rules.uppercase && rules.special, rules };
+}
+
+function buildPasswordErrorText(r) {
+    const missing = [];
+    if (!r.rules.length) missing.push('8+ characters');
+    if (!r.rules.uppercase) missing.push('1 uppercase letter');
+    if (!r.rules.special) missing.push('1 special character');
+    return missing.length ? `Password must include: ${missing.join(', ')}` : '';
+}
+
+// Attach live validation to Signup modal
+document.addEventListener('DOMContentLoaded', () => {
+    const sp = document.getElementById('signup-password');
+    const sc = document.getElementById('signup-confirm-password');
+    const spErr = document.getElementById('signup-password-error');
+    const scErr = document.getElementById('signup-confirm-error');
+    const signupFormEl = document.getElementById('signupForm');
+
+    function validateSignupFields(showConfirmErrors = false) {
+        let ok = true;
+        if (sp) {
+            const res = validatePasswordRules(sp.value || '');
+            spErr && (spErr.textContent = buildPasswordErrorText(res));
+            if (!res.ok) ok = false;
+        }
+        if (sc && sp) {
+            const scVal = sc.value || '';
+            const match = scVal === (sp.value || '');
+            // Only show confirm error after user started typing in confirm, or when explicitly requested (on submit)
+            const shouldShow = showConfirmErrors || scVal.length > 0;
+            if (scErr) scErr.textContent = shouldShow && !match ? 'Passwords do not match' : '';
+            if (!match) ok = false;
+        }
+        return ok;
+    }
+
+    if (sp) sp.addEventListener('input', () => validateSignupFields(false));
+    if (sc) sc.addEventListener('input', () => validateSignupFields(false));
+    if (signupFormEl) {
+        signupFormEl.addEventListener('submit', function(ev){
+            if (!validateSignupFields(true)) {
+                ev.preventDefault(); ev.stopPropagation();
+                // Keep modal open and focus first invalid
+                if (spErr && spErr.textContent) sp && sp.focus();
+                else if (scErr && scErr.textContent) sc && sc.focus();
+                return false;
+            }
+        }, true);
+    }
+});
+
+// Attach live validation to Password Recovery modal
+document.addEventListener('DOMContentLoaded', () => {
+    const np = document.getElementById('new-password');
+    const cp = document.getElementById('confirm-password');
+    const npErr = document.getElementById('recovery-password-error');
+    const cpErr = document.getElementById('recovery-confirm-error');
+    const changeForm = document.getElementById('changePasswordForm');
+
+    function validateRecoveryFields(showConfirmErrors = false) {
+        let ok = true;
+        if (np && !np.disabled) {
+            const res = validatePasswordRules(np.value || '');
+            npErr && (npErr.textContent = buildPasswordErrorText(res));
+            if (!res.ok) ok = false;
+        }
+        if (cp && np && !cp.disabled) {
+            const cpVal = cp.value || '';
+            const match = cpVal === (np.value || '');
+            const shouldShow = showConfirmErrors || cpVal.length > 0;
+            if (cpErr) cpErr.textContent = shouldShow && !match ? 'Passwords do not match' : '';
+            if (!match) ok = false;
+        }
+        return ok;
+    }
+
+    if (np) np.addEventListener('input', () => validateRecoveryFields(false));
+    if (cp) cp.addEventListener('input', () => validateRecoveryFields(false));
+    if (changeForm) {
+        changeForm.addEventListener('submit', function(ev){
+            if (!validateRecoveryFields(true)) {
+                ev.preventDefault(); ev.stopPropagation();
+                if (npErr && npErr.textContent) np && np.focus();
+                else if (cpErr && cpErr.textContent) cp && cp.focus();
+                return false;
+            }
+        }, true);
     }
 });
 
@@ -901,6 +1014,55 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             closeSignupModal();
         };
+    }
+
+    // Live verify of OTP code to enable password fields only when correct
+    const vcodeInput = document.getElementById('verification-code');
+    const vcodeStatus = document.getElementById('verification-code-status');
+    const npField = document.getElementById('new-password');
+    const cpField = document.getElementById('confirm-password');
+    let vTimer = null;
+    function setRecoveryEnabled(enabled) {
+        if (npField) npField.disabled = !enabled;
+        if (cpField) cpField.disabled = !enabled;
+    }
+    setRecoveryEnabled(false);
+    if (vcodeInput) {
+        vcodeInput.addEventListener('input', function(){
+            // debounce
+            if (vTimer) clearTimeout(vTimer);
+            vTimer = setTimeout(() => {
+                const username = document.getElementById('change-username').value;
+                const email = document.getElementById('change-email').value;
+                const code = vcodeInput.value.trim();
+                if (!username || !email || !code) {
+                    vcodeStatus && (vcodeStatus.textContent = '');
+                    setRecoveryEnabled(false);
+                    return;
+                }
+                const params = new URLSearchParams();
+                params.append('ajax', 'verify_code');
+                params.append('username', username);
+                params.append('email', email);
+                params.append('code', code);
+                fetch('Login.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
+                  .then(r => r.json())
+                  .then(j => {
+                    if (j.ok) {
+                        // No success text; just enable the fields silently
+                        vcodeStatus && (vcodeStatus.textContent = '');
+                        setRecoveryEnabled(true);
+                    } else {
+                        vcodeStatus && (vcodeStatus.textContent = j.message || 'Invalid or expired code');
+                        setRecoveryEnabled(false);
+                    }
+                  })
+                  .catch(() => {
+                    vcodeStatus && (vcodeStatus.textContent = 'Network error.');
+                    setRecoveryEnabled(false);
+                  });
+            }, 350);
+        });
     }
 });
 
@@ -1094,5 +1256,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+</body>
+</html>
 </body>
 </html>

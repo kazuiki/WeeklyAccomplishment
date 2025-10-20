@@ -870,9 +870,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 <div class="modal" id="logoutModal">
     <div class="modal-content logout-modal">
         <h2 class="logout-title">Are you sure you want to logout?</h2>
-        <div class="modal-buttons logout-confirm">
-            <button class="btn cancel-outline" onclick="closeModal()">Cancel</button>
-            <button class="btn confirm-filled" onclick="logout()">Confirm</button>
+        <div class="modal-buttons logout-confirm">  
+        <button class="btn confirm-filled" onclick="logout()">Confirm</button>  
+        <button class="btn cancel-outline" onclick="closeModal()">Cancel</button>
         </div>
     </div>
 </div>
