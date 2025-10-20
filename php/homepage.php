@@ -2719,11 +2719,134 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     function showAfkModal() {
       afkModalShown = true;
+      
+      // Save current state before showing AFK modal
+      saveCurrentState();
+      
       // Set sessionStorage flag so AFK modal persists on refresh
       sessionStorage.setItem('afkModalActive', 'true');
       const afkModal = document.getElementById('afkModal');
       if (afkModal) {
         afkModal.style.display = 'flex';
+      }
+    }
+
+    // Function to save current content-body and modal state
+    function saveCurrentState() {
+      try {
+        // Instead of saving raw HTML, save the current page state information
+        const activeSidebar = localStorage.getItem('activeSidebar') || 'homeButton';
+        sessionStorage.setItem('afkSavedSidebar', activeSidebar);
+        
+        // Save current week state
+        sessionStorage.setItem('afkSavedWeekState', JSON.stringify(currentWeekState));
+        
+        // Save what type of content was being viewed
+        if (activeSidebar === 'homeButton') {
+          sessionStorage.setItem('afkSavedContentType', 'analytics');
+        } else if (activeSidebar === 'fillButton') {
+          sessionStorage.setItem('afkSavedContentType', 'fillform');
+        } else if (activeSidebar === 'weekButton') {
+          sessionStorage.setItem('afkSavedContentType', 'viewform');
+        } else {
+          sessionStorage.setItem('afkSavedContentType', 'analytics'); // default
+        }
+        
+        // Check if any modal is currently open and save its ID
+        const openModals = document.querySelectorAll('.modal[style*="flex"], .modal[style*="block"]');
+        let openModalId = null;
+        openModals.forEach(modal => {
+          if (modal.style.display === 'flex' || modal.style.display === 'block') {
+            if (modal.id !== 'afkModal') { // Don't save the AFK modal itself
+              openModalId = modal.id;
+            }
+          }
+        });
+        
+        if (openModalId) {
+          sessionStorage.setItem('afkSavedModal', openModalId);
+        } else {
+          sessionStorage.removeItem('afkSavedModal');
+        }
+        
+        console.log('State saved for AFK recovery');
+      } catch (error) {
+        console.error('Error saving AFK state:', error);
+      }
+    }
+
+    // Function to restore saved state after login
+    function restoreAfkState() {
+      try {
+        const savedSidebar = sessionStorage.getItem('afkSavedSidebar');
+        const savedWeekState = sessionStorage.getItem('afkSavedWeekState');
+        const savedModal = sessionStorage.getItem('afkSavedModal');
+        const savedContentType = sessionStorage.getItem('afkSavedContentType');
+        
+        if (savedWeekState) {
+          try {
+            currentWeekState = JSON.parse(savedWeekState);
+          } catch (e) {
+            console.warn('Failed to restore week state:', e);
+          }
+        }
+        
+        if (savedSidebar) {
+          // Restore active sidebar
+          const sidebarItems = ['homeButton','fillButton','weekButton','scheduleButton'];
+          sidebarItems.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('active-nav');
+          });
+          
+          const activeEl = document.getElementById(savedSidebar);
+          if (activeEl) {
+            activeEl.classList.add('active-nav');
+            localStorage.setItem('activeSidebar', savedSidebar);
+          }
+        }
+        
+        // Properly reload content using existing functions instead of raw HTML
+        if (savedContentType) {
+          setTimeout(() => {
+            try {
+              if (savedContentType === 'analytics') {
+                loadAnalytics();
+              } else if (savedContentType === 'fillform') {
+                loadTodayForm();
+              } else if (savedContentType === 'viewform') {
+                loadViewForm(currentWeekState.week, currentWeekState.range, currentWeekState.year);
+              } else {
+                loadAnalytics(); // fallback
+              }
+            } catch (e) {
+              console.warn('Failed to reload content:', e);
+              // Fallback to analytics
+              loadAnalytics();
+            }
+          }, 300);
+        }
+        
+        // Restore modal if one was open
+        if (savedModal) {
+          setTimeout(() => {
+            const modal = document.getElementById(savedModal);
+            if (modal) {
+              modal.style.display = 'flex';
+              document.body.classList.add('modal-open');
+            }
+          }, 800); // Longer delay to ensure content is fully loaded
+        }
+        
+        // Clean up saved state
+        sessionStorage.removeItem('afkSavedSidebar');
+        sessionStorage.removeItem('afkSavedWeekState');
+        sessionStorage.removeItem('afkSavedModal');
+        sessionStorage.removeItem('afkSavedContentType');
+        
+        console.log('AFK state restored successfully');
+      } catch (error) {
+        console.error('Error restoring AFK state:', error);
       }
     }
 
@@ -2770,6 +2893,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     // Initialize the timer when page loads
     document.addEventListener('DOMContentLoaded', function() {
+      // Check if user is returning from AFK login and has saved state to restore
+      if (sessionStorage.getItem('afkSavedContentType') && !sessionStorage.getItem('afkModalActive')) {
+        // User just logged back in after AFK, restore their previous state
+        setTimeout(() => {
+          restoreAfkState();
+        }, 1000); // Wait for page to fully load
+      }
+      
       // Check if AFK modal was active before page refresh
       if (sessionStorage.getItem('afkModalActive') === 'true') {
         // Restore AFK modal state - don't let refresh dismiss it
