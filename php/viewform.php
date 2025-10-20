@@ -398,7 +398,7 @@ if (!$isAjax): ?>
 <html>
 <head>
     <title>Weekly Accomplishment Report</title>
-    <link rel="stylesheet" href="css/viewform.css">
+    <link rel="stylesheet" href="css/viewform.css?v=<?php echo time(); ?>">
     <style>
         /* Print margins: add small margins to prevent content from being too close to edges */
         @page {
