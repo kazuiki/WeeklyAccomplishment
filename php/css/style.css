@@ -502,7 +502,7 @@ body.modal-open .auth-card {
 /* Password validation message */
 .password-validation {
   position: absolute;
-  right: 0;
+  left: 0;
   bottom: -20px;
   font-size: 11px;
   color: #ff4444;
@@ -902,4 +902,54 @@ body.modal-open .auth-card {
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
+}
+
+/* Password validation styles */
+.password-requirements {
+    font-size: 12px;
+    margin-top: -15px;
+    padding: 8px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    display: none;
+}
+
+.password-requirements.show {
+    display: block;
+}
+
+.requirement {
+    color: #dc3545;
+    margin: 2px 0;
+    transition: color 0.3s ease;
+}
+
+.requirement.valid {
+    color: #28a745;
+}
+
+.requirement.valid:before {
+    content: "✓ ";
+    font-weight: bold;
+}
+
+.password-validation {
+    font-size: 12px;
+    color: #dc3545;
+    margin-top: 5px;
+    display: none;
+}
+
+.password-validation.show {
+    display: block;
+}
+
+.input-group.invalid input {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+}
+
+.input-group.valid input {
+    border-color: #28a745 !important;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
 }

@@ -224,6 +224,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
         echo json_encode([ 'ok' => false, 'message' => 'Passwords do not match.' ]); exit();
     }
 
+    // Password validation: 8+ chars, 1 uppercase, 1 special character
+    if (strlen($signup_password) < 8) {
+        echo json_encode([ 'ok' => false, 'message' => 'Password must be at least 8 characters long.' ]); exit();
+    }
+    if (!preg_match('/[A-Z]/', $signup_password)) {
+        echo json_encode([ 'ok' => false, 'message' => 'Password must contain at least 1 uppercase letter.' ]); exit();
+    }
+    if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?~`]/', $signup_password)) {
+        echo json_encode([ 'ok' => false, 'message' => 'Password must contain at least 1 special character.' ]); exit();
+    }
+
     // Check for existing username ONLY (emails may be duplicated per requirements)
     $exists = $conn->prepare("SELECT user_id FROM users WHERE username = ? LIMIT 1");
     $exists->bind_param("s", $signup_username);
@@ -278,6 +289,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
     }
     if ($new_password !== $confirm_password) {
         echo json_encode([ 'ok' => false, 'message' => 'Passwords do not match!' ]); exit();
+    }
+
+    // Password validation: 8+ chars, 1 uppercase, 1 special character
+    if (strlen($new_password) < 8) {
+        echo json_encode([ 'ok' => false, 'message' => 'Password must be at least 8 characters long.' ]); exit();
+    }
+    if (!preg_match('/[A-Z]/', $new_password)) {
+        echo json_encode([ 'ok' => false, 'message' => 'Password must contain at least 1 uppercase letter.' ]); exit();
+    }
+    if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?~`]/', $new_password)) {
+        echo json_encode([ 'ok' => false, 'message' => 'Password must contain at least 1 special character.' ]); exit();
     }
 
     $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
@@ -465,6 +487,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $changePasswordError = "Invalid or expired verification code!";
             } elseif ($new_password !== $confirm_password) {
                 $changePasswordError = "Passwords do not match!";
+            } elseif (strlen($new_password) < 8) {
+                $changePasswordError = "Password must be at least 8 characters long.";
+            } elseif (!preg_match('/[A-Z]/', $new_password)) {
+                $changePasswordError = "Password must contain at least 1 uppercase letter.";
+            } elseif (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?~`]/', $new_password)) {
+                $changePasswordError = "Password must contain at least 1 special character.";
             } else {
                 $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
 
@@ -565,6 +593,11 @@ $conn->close();
             <div class="input-group float">
                 <input type="password" id="signup-password" name="signup_password" placeholder=" " required>
                 <label for="signup-password">Password</label>
+                <div class="password-requirements" id="password-requirements">
+                    <div class="requirement" id="req-length">• At least 8 characters</div>
+                    <div class="requirement" id="req-uppercase">• At least 1 uppercase letter</div>
+                    <div class="requirement" id="req-special">• At least 1 special character</div>
+                </div>
             </div>
             <div class="input-group float">
                 <input type="password" id="signup-confirm-password" name="signup_confirm_password" placeholder=" " required>
@@ -643,11 +676,16 @@ $conn->close();
                 <div class="input-group float">
                     <input type="password" id="new-password" name="new_password" placeholder=" ">
                     <label for="new-password">Password</label>
+                    <div class="password-requirements" id="change-password-requirements">
+                        <div class="requirement" id="change-req-length">• At least 8 characters</div>
+                        <div class="requirement" id="change-req-uppercase">• At least 1 uppercase letter</div>
+                        <div class="requirement" id="change-req-special">• At least 1 special character</div>
+                    </div>
                 </div>
                 <div class="input-group float">
                     <input type="password" id="confirm-password" name="confirm_password" placeholder=" ">
                     <label for="confirm-password">Confirm Password</label>
-                    <div class="password-validation" id="password-validation">Password don't match</div>
+                    <div class="password-validation" id="password-validation"></div>
                 </div>
             </div>
             <?php if (!empty($changePasswordError)) { ?>    
@@ -662,6 +700,60 @@ $conn->close();
 </div>
 
 <script>
+// Password validation for signup
+function validatePassword(password) {
+    const requirements = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)
+    };
+    return requirements;
+}
+
+function updatePasswordRequirements(password) {
+    const requirements = validatePassword(password);
+    const requirementsDiv = document.getElementById('password-requirements');
+    
+    // Show requirements when password field is focused or has content
+    if (password.length > 0) {
+        requirementsDiv.classList.add('show');
+    } else {
+        requirementsDiv.classList.remove('show');
+    }
+    
+    // Update each requirement indicator
+    document.getElementById('req-length').classList.toggle('valid', requirements.length);
+    document.getElementById('req-uppercase').classList.toggle('valid', requirements.uppercase);
+    document.getElementById('req-special').classList.toggle('valid', requirements.special);
+    
+    return requirements.length && requirements.uppercase && requirements.special;
+}
+
+function validatePasswordMatch() {
+    const password = document.getElementById('signup-password').value;
+    const confirmPassword = document.getElementById('signup-confirm-password').value;
+    const validation = document.getElementById('signup-password-validation');
+    const confirmGroup = document.getElementById('signup-confirm-password').parentElement;
+    
+    if (confirmPassword.length > 0) {
+        if (password !== confirmPassword) {
+            validation.classList.add('show');
+            confirmGroup.classList.add('invalid');
+            confirmGroup.classList.remove('valid');
+            return false;
+        } else {
+            validation.classList.remove('show');
+            confirmGroup.classList.remove('invalid');
+            confirmGroup.classList.add('valid');
+            return true;
+        }
+    } else {
+        validation.classList.remove('show');
+        confirmGroup.classList.remove('invalid', 'valid');
+        return false;
+    }
+}
+
 // Add variable for modal state
 let keepOverlayForStatus = false;
 
@@ -751,6 +843,228 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Password validation for signup
+    const signupPassword = document.getElementById('signup-password');
+    const signupConfirmPassword = document.getElementById('signup-confirm-password');
+    const signupSubmitBtn = document.getElementById('signupSubmit');
+    
+    if (signupPassword) {
+        signupPassword.addEventListener('input', function() {
+            const isValid = updatePasswordRequirements(this.value);
+            const passwordGroup = this.parentElement;
+            
+            if (this.value.length > 0) {
+                if (isValid) {
+                    passwordGroup.classList.remove('invalid');
+                    passwordGroup.classList.add('valid');
+                } else {
+                    passwordGroup.classList.add('invalid');
+                    passwordGroup.classList.remove('valid');
+                }
+            } else {
+                passwordGroup.classList.remove('invalid', 'valid');
+            }
+            
+            // Also validate confirm password if it has content
+            if (signupConfirmPassword.value.length > 0) {
+                validatePasswordMatch();
+            }
+            
+            updateSubmitButton();
+        });
+        
+        signupPassword.addEventListener('focus', function() {
+            document.getElementById('password-requirements').classList.add('show');
+        });
+        
+        signupPassword.addEventListener('blur', function() {
+            if (this.value.length === 0) {
+                document.getElementById('password-requirements').classList.remove('show');
+            }
+        });
+    }
+    
+    if (signupConfirmPassword) {
+        signupConfirmPassword.addEventListener('input', function() {
+            validatePasswordMatch();
+            updateSubmitButton();
+        });
+    }
+    
+    function updateSubmitButton() {
+        const password = signupPassword?.value || '';
+        const confirmPassword = signupConfirmPassword?.value || '';
+        const isPasswordValid = updatePasswordRequirements(password);
+        const isMatchValid = password === confirmPassword && password.length > 0;
+        
+        if (signupSubmitBtn) {
+            signupSubmitBtn.disabled = !(isPasswordValid && isMatchValid);
+        }
+    }
+
+    // Change Password Modal validation
+    const newPassword = document.getElementById('new-password');
+    const confirmPassword = document.getElementById('confirm-password');
+    const changePasswordResetBtn = document.querySelector('#changePasswordForm .btn.primary');
+    
+    function updateChangePasswordRequirements(password) {
+        const requirements = validatePassword(password);
+        const requirementsDiv = document.getElementById('change-password-requirements');
+        
+        // Show requirements when password field is focused or has content
+        if (password.length > 0) {
+            requirementsDiv.classList.add('show');
+        } else {
+            requirementsDiv.classList.remove('show');
+        }
+        
+        // Update each requirement indicator
+        document.getElementById('change-req-length').classList.toggle('valid', requirements.length);
+        document.getElementById('change-req-uppercase').classList.toggle('valid', requirements.uppercase);
+        document.getElementById('change-req-special').classList.toggle('valid', requirements.special);
+        
+        return requirements.length && requirements.uppercase && requirements.special;
+    }
+    
+    function validateChangePasswordMatch() {
+        const password = newPassword.value;
+        const confirmPass = confirmPassword.value;
+        const validation = document.getElementById('password-validation');
+        const confirmGroup = confirmPassword.parentElement;
+        
+        if (confirmPass.length > 0) {
+            if (password !== confirmPass) {
+                validation.classList.add('show');
+                confirmGroup.classList.add('invalid');
+                confirmGroup.classList.remove('valid');
+                return false;
+            } else {
+                validation.classList.remove('show');
+                confirmGroup.classList.remove('invalid');
+                confirmGroup.classList.add('valid');
+                return true;
+            }
+        } else {
+            validation.classList.remove('show');
+            confirmGroup.classList.remove('invalid', 'valid');
+            return false;
+        }
+    }
+    
+    function updateChangePasswordSubmitButton() {
+        const password = newPassword?.value || '';
+        const confirmPass = confirmPassword?.value || '';
+        const isPasswordValid = updateChangePasswordRequirements(password);
+        const isMatchValid = password === confirmPass && password.length > 0;
+        
+        if (changePasswordResetBtn) {
+            changePasswordResetBtn.disabled = !(isPasswordValid && isMatchValid);
+        }
+    }
+    
+    if (newPassword) {
+        newPassword.addEventListener('input', function() {
+            const isValid = updateChangePasswordRequirements(this.value);
+            const passwordGroup = this.parentElement;
+            
+            if (this.value.length > 0) {
+                if (isValid) {
+                    passwordGroup.classList.remove('invalid');
+                    passwordGroup.classList.add('valid');
+                } else {
+                    passwordGroup.classList.add('invalid');
+                    passwordGroup.classList.remove('valid');
+                }
+            } else {
+                passwordGroup.classList.remove('invalid', 'valid');
+            }
+            
+            // Also validate confirm password if it has content
+            if (confirmPassword.value.length > 0) {
+                validateChangePasswordMatch();
+            }
+            
+            updateChangePasswordSubmitButton();
+        });
+        
+        newPassword.addEventListener('focus', function() {
+            document.getElementById('change-password-requirements').classList.add('show');
+        });
+        
+        newPassword.addEventListener('blur', function() {
+            if (this.value.length === 0) {
+                document.getElementById('change-password-requirements').classList.remove('show');
+            }
+        });
+    }
+    
+    if (confirmPassword) {
+        confirmPassword.addEventListener('input', function() {
+            validateChangePasswordMatch();
+            updateChangePasswordSubmitButton();
+        });
+    }
+
+    // Verification code validation for change password
+    const verificationCodeInput = document.getElementById('verification-code');
+    if (verificationCodeInput) {
+        verificationCodeInput.addEventListener('input', function() {
+            const code = this.value.trim();
+            const username = document.getElementById('change-username').value;
+            const email = document.getElementById('change-email').value;
+            
+            if (code.length >= 6 && username && email) {
+                // Verify code with server
+                const data = new URLSearchParams();
+                data.append('ajax', 'verify_code');
+                data.append('username', username);
+                data.append('email', email);
+                data.append('code', code);
+                
+                fetch('Login.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: data.toString()
+                })
+                .then(r => r.json())
+                .then(j => {
+                    if (j.ok) {
+                        // Enable password fields when verification is successful
+                        if (newPassword) newPassword.disabled = false;
+                        if (confirmPassword) confirmPassword.disabled = false;
+                        
+                        // Add visual feedback
+                        verificationCodeInput.parentElement.classList.remove('invalid');
+                        verificationCodeInput.parentElement.classList.add('valid');
+                        
+                    } else {
+                        // Keep password fields disabled for invalid codes
+                        if (newPassword) newPassword.disabled = true;
+                        if (confirmPassword) confirmPassword.disabled = true;
+                        
+                        // Add visual feedback for invalid code
+                        if (code.length >= 6) {
+                            verificationCodeInput.parentElement.classList.remove('valid');
+                            verificationCodeInput.parentElement.classList.add('invalid');
+                        }
+                    }
+                })
+                .catch(() => {
+                    // Keep disabled on network error
+                    if (newPassword) newPassword.disabled = true;
+                    if (confirmPassword) confirmPassword.disabled = true;
+                });
+            } else {
+                // Keep password fields disabled if code is too short
+                if (newPassword) newPassword.disabled = true;
+                if (confirmPassword) confirmPassword.disabled = true;
+                
+                // Remove visual feedback classes
+                verificationCodeInput.parentElement.classList.remove('invalid', 'valid');
+            }
+        });
+    }
+
     // Fix Forgot Password link
     document.querySelector('.link.forgot').addEventListener('click', function(e) {
         e.preventDefault();
@@ -804,9 +1118,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.ok) {
                     showFloatingNotification(data.message || 'Verification code sent to your email', 'success');
-                    // Enable password fields after successful code send
-                    document.getElementById('new-password').disabled = false;
-                    document.getElementById('confirm-password').disabled = false;
+                    // Do NOT enable password fields here - only enable when correct code is entered
                     
                     // Start countdown timer
                     let timeLeft = 60;
@@ -862,10 +1174,24 @@ function openChangePasswordModal() {
         changeUsername.value = usernameField.value || '';
     }
     
+    // Always start with password fields disabled until correct verification code is entered
     const newPasswordField = document.getElementById('new-password');
     const confirmPasswordField = document.getElementById('confirm-password');
-    if (newPasswordField) newPasswordField.disabled = true;
-    if (confirmPasswordField) confirmPasswordField.disabled = true;
+    if (newPasswordField) {
+        newPasswordField.disabled = true;
+        newPasswordField.value = ''; // Clear any previous value
+    }
+    if (confirmPasswordField) {
+        confirmPasswordField.disabled = true;
+        confirmPasswordField.value = ''; // Clear any previous value
+    }
+    
+    // Clear verification code field
+    const verificationCodeField = document.getElementById('verification-code');
+    if (verificationCodeField) {
+        verificationCodeField.value = '';
+        verificationCodeField.parentElement.classList.remove('valid', 'invalid');
+    }
     
     document.body.classList.add('modal-open');
     modal.style.display = 'flex';
