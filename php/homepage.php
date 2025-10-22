@@ -169,29 +169,26 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                 error_log("$key: " . ($_POST[$key] ?? 'NOT SET'));
             }
 
-            // Optional server-side validation of Fill Out Form times (AM for time_in, PM for time_out)
-            if (isset($_POST['validate_times']) && $_POST['validate_times'] == '1') {
-                if (isset($_POST['time_in']) && $_POST['time_in'] !== '') {
-                    $timeIn = $_POST['time_in'];
-                    $parts = explode(':', $timeIn);
-                    $hours = isset($parts[0]) ? (int)$parts[0] : null;
-                    if ($hours !== null && $hours >= 12) {
-                        $response["status"] = "error";
-                        $response["message"] = "Time-In must be AM only (12:00 AM - 11:59 AM)";
-                        echo json_encode($response);
-                        exit();
-                    }
+            // Server-side validation for Time-In (AM only) and Time-Out (PM only)
+            if (isset($_POST['time_in']) && !empty($_POST['time_in'])) {
+                $timeIn = $_POST['time_in'];
+                list($hours, $minutes) = explode(':', $timeIn);
+                $hours = (int)$hours;
+                
+                if ($hours >= 12) {
+                    echo json_encode(['success' => false, 'message' => 'Time-In must be AM only (12:00 AM - 11:59 AM)']);
+                    exit;
                 }
-                if (isset($_POST['time_out']) && $_POST['time_out'] !== '') {
-                    $timeOut = $_POST['time_out'];
-                    $parts = explode(':', $timeOut);
-                    $hours = isset($parts[0]) ? (int)$parts[0] : null;
-                    if ($hours !== null && $hours < 12) {
-                        $response["status"] = "error";
-                        $response["message"] = "Time-Out must be PM only (12:00 PM - 11:59 PM)";
-                        echo json_encode($response);
-                        exit();
-                    }
+            }
+
+            if (isset($_POST['time_out']) && !empty($_POST['time_out'])) {
+                $timeOut = $_POST['time_out'];
+                list($hours, $minutes) = explode(':', $timeOut);
+                $hours = (int)$hours;
+                
+                if ($hours < 12) {
+                    echo json_encode(['success' => false, 'message' => 'Time-Out must be PM only (12:00 PM - 11:59 PM)']);
+                    exit;
                 }
             }
 
@@ -887,21 +884,6 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     <div class="detail-row"><div class="detail-label">Email Account</div><div class="detail-value"><?= htmlspecialchars($user_email ?? $user_profile['student_email'] ?? '') ?></div></div>
                     <div class="detail-row"><div class="detail-label">Course</div><div class="detail-value"><?= htmlspecialchars($user_profile['student_course'] ?? '') ?></div></div>
                     <div class="detail-row"><div class="detail-label">Year</div><div class="detail-value"><?= htmlspecialchars($user_profile['student_year'] ?? '') ?></div></div>
-                    <!-- Inactivity Auto-Logout Settings (below Year) -->
-                    <div class="settings-block" id="inactivity-settings">
-                        <div class="settings-title">Session Settings</div>
-                        <div class="detail-row no-border inactivity-row">
-                            <div class="detail-label">Auto Logout (Inactive)</div>
-                            <div class="inactivity-controls">
-                                <input type="number" id="afk-time-value" min="1" step="1" placeholder="e.g., 15" aria-label="Auto logout time value">
-                                <div class="unit-group" role="radiogroup" aria-label="Time unit">
-                                    <label><input type="radio" name="afk-time-unit" value="minutes" checked> Minutes</label>
-                                    <label><input type="radio" name="afk-time-unit" value="hours"> Hours</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="help-text">Changes apply immediately.</div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1064,7 +1046,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         </select>
       </div>
       <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
-        <button class="btn" onclick="loadSelectedWeek()" style="background-color: #28a745 !important; border-color: #28a745 !important; color: white !important; padding: 8px 16px; border-radius: 8px; border: 1px solid;">Load Week</button>
+        <button class="btn" onclick="loadSelectedWeek()" style="background-color: #28a745 !important; border-color: #28a745 !important; color: white !important; padding: 8px 16px; border-radius: 4px; border: 1px solid;">Load Week</button>
         <button class="btn cancel-red-outline" onclick="closeWeekModal()">Exit</button>
       </div>
     </div>
@@ -1472,7 +1454,66 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         return (capped ? '8:00' : (h + ':' + String(m).padStart(2, '0')));
     }
 
-    // Client-side validations for Fill Out Form have been disabled temporarily
+    // Validation functions for Time-In (AM only) and Time-Out (PM only)
+    function validateTimeIn() {
+        const timeInEl = document.getElementById('time-in');
+        const errorEl = document.getElementById('time-in-error');
+        if (!timeInEl || !errorEl) return true;
+
+        const value = timeInEl.value;
+        if (!value) {
+            errorEl.style.display = 'none';
+            return true;
+        }
+
+        // Parse time value (HH:MM format)
+        const [hours, minutes] = value.split(':').map(Number);
+        
+        // Time-In must be AM (00:00 to 11:59)
+        if (hours >= 12) {
+            errorEl.textContent = '⚠ Time-In must be AM only (12:00 AM - 11:59 AM)';
+            errorEl.style.display = 'block';
+            timeInEl.style.borderColor = '#e74c3c';
+            return false;
+        }
+
+        errorEl.style.display = 'none';
+        timeInEl.style.borderColor = '';
+        return true;
+    }
+
+    function validateTimeOut() {
+        const timeOutEl = document.getElementById('time-out');
+        const errorEl = document.getElementById('time-out-error');
+        if (!timeOutEl || !errorEl) return true;
+
+        const value = timeOutEl.value;
+        if (!value) {
+            errorEl.style.display = 'none';
+            return true;
+        }
+
+        // Parse time value (HH:MM format)
+        const [hours, minutes] = value.split(':').map(Number);
+        
+        // Time-Out must be PM (12:00 to 23:59)
+        if (hours < 12) {
+            errorEl.textContent = '⚠ Time-Out must be PM only (12:00 PM - 11:59 PM)';
+            errorEl.style.display = 'block';
+            timeOutEl.style.borderColor = '#e74c3c';
+            return false;
+        }
+
+        errorEl.style.display = 'none';
+        timeOutEl.style.borderColor = '';
+        return true;
+    }
+
+    function validateAllTimes() {
+        const timeInValid = validateTimeIn();
+        const timeOutValid = validateTimeOut();
+        return timeInValid && timeOutValid;
+    }
 
 
     // Before submitting, normalize time-out when needed so server TIMESTAMPDIFF(HOUR,...) stores correct capped value.
@@ -2456,32 +2497,50 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Enhanced Form submission with animations
         const accomplishmentForm = document.getElementById("accomplishmentForm");
         if (accomplishmentForm) {
-            // Removed live validation listeners (AM/PM checks)
+            // Add live validation listeners for Time-In and Time-Out
+            const timeInEl = document.getElementById('time-in');
+            const timeOutEl = document.getElementById('time-out');
+            
+            if (timeInEl) {
+                timeInEl.addEventListener('change', validateTimeIn);
+                timeInEl.addEventListener('blur', validateTimeIn);
+            }
+            if (timeOutEl) {
+                timeOutEl.addEventListener('change', validateTimeOut);
+                timeOutEl.addEventListener('blur', validateTimeOut);
+            }
 
             accomplishmentForm.addEventListener("submit", function(e) {
                 e.preventDefault();
-                // Client-side AM/PM validation for Fill Out Form
-                try {
-                    const msg = document.getElementById("formMessage");
-                    const tin = (document.getElementById('time-in')?.value || '').trim();
-                    const tout = (document.getElementById('time-out')?.value || '').trim();
-                    if (tin && tin.includes(':')) {
-                        const hIn = parseInt(tin.split(':')[0], 10);
-                        if (!isNaN(hIn) && hIn >= 12) {
-                            if (msg) { msg.style.color = '#f44336'; msg.textContent = 'Time-In must be AM only (12:00 AM - 11:59 AM)'; }
-                            return; // block submit
-                        }
-                    }
-                    if (tout && tout.includes(':')) {
-                        const hOut = parseInt(tout.split(':')[0], 10);
-                        if (!isNaN(hOut) && hOut < 12) {
-                            if (msg) { msg.style.color = '#f44336'; msg.textContent = 'Time-Out must be PM only (12:00 PM - 11:59 PM)'; }
-                            return; // block submit
-                        }
-                    }
-                } catch (vErr) { /* ignore and proceed */ }
+               
                 const submitBtn = document.getElementById('submit-button');
                 const msg = document.getElementById("formMessage");
+                
+                // Add loading animation to submit button
+                if (submitBtn) {
+                    submitBtn.style.position = 'relative';
+                    submitBtn.style.overflow = 'hidden';
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = `
+                        <span style="opacity: 0.7;">Saving...</span>
+                        <div style="
+                            position: absolute;
+                            top: 50%;
+                            right: 15px;
+                            transform: translateY(-50%);
+                            width: 16px;
+                            height: 16px;
+                            border: 2px solid rgba(255, 255, 255, 0.3);
+                            border-top: 2px solid #ffffff;
+                            border-radius: 50%;
+                            animation: spin 0.8s linear infinite;
+                        "></div>
+                    `;
+                }
+                
+                // Simple loading feedback instead of heavy shimmer
+                accomplishmentForm.style.opacity = '0.7';
+                accomplishmentForm.style.transition = 'opacity 0.15s ease';
                 
                // enforce/normalize times (cap at 8h, handle overnight) before sending
                try { enforceTimesBeforeSubmit(); } catch (err) { console.warn('enforceTimesBeforeSubmit failed', err); }
@@ -2491,8 +2550,6 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 formData.append('ajax', 'save_form');
                 formData.append('week', currentWeekState.week);
                 formData.append('year', currentWeekState.year);
-                // Ask server to validate AM/PM as well (unified messaging)
-                formData.append('validate_times', '1');
                 formData.append('time_in', document.getElementById('time-in').value);
                 formData.append('time_out', document.getElementById('time-out').value);
                 formData.append('task_completed', document.getElementById('task').value);
@@ -2514,7 +2571,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     console.log(pair[0] + ': ' + pair[1]);
                 }
 
-                // No "Saving..." label/effects per request
+                if (msg) {
+                    msg.style.color = "#2196F3";
+                    msg.style.opacity = "1";
+                    msg.style.transform = "scale(1.02)";
+                    msg.style.transition = "all 0.3s ease";
+                    msg.textContent = "Saving data...";
+                }
 
                 fetch(window.location.pathname, {
                     method: "POST",
@@ -2527,60 +2590,90 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 .then(data => {
                     console.log("Server response:", data);
                     
+                    // Restore form opacity
+                    accomplishmentForm.style.opacity = '1';
+                    
                     if (data.status === "success") {
-                        // Close immediately and navigate to Weekly View of current week
-                        closeFillModal();
-                        try {
-                            const today = new Date();
-                            const week = typeof today.getWeek === 'function' ? today.getWeek() : (function(){
-                                const d = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-                                const dayNum = d.getUTCDay() || 7;
-                                d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-                                const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-                                return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-                            })();
-                            const year = today.getFullYear();
-
-                            // Compute Monday..Saturday range label
-                            const monday = new Date(today);
-                            const day = monday.getDay();
-                            const diff = (day === 0 ? -6 : 1) - day; // if Sunday, go back 6; else to Monday
-                            monday.setDate(monday.getDate() + diff);
-                            const saturday = new Date(monday);
-                            saturday.setDate(monday.getDate() + 5);
-                            const range = `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${saturday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-
-                            currentWeekState.week = week;
-                            currentWeekState.year = year;
-                            currentWeekState.range = range;
-
-                            try { localStorage.setItem('activeSidebar', 'weekButton'); } catch (e) {}
-                            ['homeButton','fillButton','weekButton','scheduleButton'].forEach(id => {
-                                const el = document.getElementById(id);
-                                if (el) el.classList.remove('active-nav');
-                            });
-                            const weekBtn = document.getElementById('weekButton');
-                            if (weekBtn) weekBtn.classList.add('active-nav');
-
-                            loadViewForm(week, range, year);
-                        } catch (navErr) {
-                            refreshCurrentViewForm();
+                        // Success animation
+                        if (msg) {
+                            msg.style.color = "#4CAF50";
+                            msg.style.animation = "successFlash 0.3s ease";
+                            msg.textContent = data.message;
                         }
+                        
+                        if (submitBtn) {
+                            submitBtn.style.background = "linear-gradient(135deg, #4CAF50, #45a049)";
+                            submitBtn.innerHTML = "✓ Saved!";
+                            submitBtn.style.animation = "pulse 0.6s ease";
+                        }
+                        
+                        // Add success effect to form
+                        accomplishmentForm.style.animation = "successFlash 0.6s ease";
+                        
+                        setTimeout(() => {
+                            closeFillModal();
+                            refreshCurrentViewForm();
+                        }, 1200);
                     } else {
-                        // Show error message only; no button or form effects
+                        // Error animation
                         if (msg) {
                             msg.style.color = "#f44336";
+                            msg.style.animation = "shake 0.5s ease";
                             msg.textContent = data.message || "Error saving data";
                         }
+                        
+                        if (submitBtn) {
+                            submitBtn.style.background = "#f44336";
+                            submitBtn.innerHTML = "✗ Error - Try Again";
+                            submitBtn.style.animation = "shake 0.5s ease";
+                            submitBtn.disabled = false;
+                            
+                            // Reset button after delay
+                            setTimeout(() => {
+                                submitBtn.style.background = "";
+                                submitBtn.innerHTML = "Submit";
+                                submitBtn.style.animation = "";
+                            }, 3000);
+                        }
+                        
+                        // Add error shake to form
+                        accomplishmentForm.style.animation = "shake 0.5s ease";
+                        setTimeout(() => {
+                            accomplishmentForm.style.animation = "";
+                        }, 500);
                     }
                 })
                 .catch(err => {
                     console.error("Submit error:", err);
-                    // Show error message only; no button or form effects
+                    
+                    // Restore form opacity
+                    accomplishmentForm.style.opacity = '1';
+                    
+                    // Network error animation
                     if (msg) {
                         msg.style.color = "#ff5722";
+                        msg.style.animation = "shake 0.5s ease";
                         msg.textContent = "Network error. Please try again.";
                     }
+                    
+                    if (submitBtn) {
+                        submitBtn.style.background = "#ff5722";
+                        submitBtn.innerHTML = "✗ Network Error";
+                        submitBtn.style.animation = "shake 0.5s ease";
+                        submitBtn.disabled = false;
+                        
+                        // Reset button after delay
+                        setTimeout(() => {
+                            submitBtn.style.background = "";
+                            submitBtn.innerHTML = "Submit";
+                            submitBtn.style.animation = "";
+                        }, 3000);
+                    }
+                    
+                    accomplishmentForm.style.animation = "shake 0.5s ease";
+                    setTimeout(() => {
+                        accomplishmentForm.style.animation = "";
+                    }, 500);
                 });
             });
         }
@@ -2731,23 +2824,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
   // AFK Timer - Auto logout after inactivity
   (function() {
-        // Compute AFK timeout based on user's preference stored locally; fallback to default
-        function getAfkTimeoutMs() {
-            try {
-                const rawVal = localStorage.getItem('afk_time_value');
-                const rawUnit = localStorage.getItem('afk_time_unit');
-                const v = Math.max(1, parseInt(rawVal || '0', 10));
-                const unit = (rawUnit === 'hours') ? 'hours' : 'minutes';
-                const minutes = unit === 'hours' ? v * 60 : v;
-                // reasonable clamp: min 1 minute, max 8 hours
-                const clampedMin = Math.max(1, minutes);
-                const clamped = Math.min(clampedMin, 8 * 60);
-                return clamped * 60 * 1000;
-            } catch (e) {
-                // default 2 minutes if storage not available
-                return 2 * 60 * 1000;
-            }
-        }
+    const AFK_TIMEOUT = 2 * 60 * 1000; // 1 minute in milliseconds (you can adjust this)
     let afkTimer;
     let afkModalShown = false;
 
@@ -2761,9 +2838,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       clearTimeout(afkTimer);
 
       // Set new timer
-            afkTimer = setTimeout(function() {
+      afkTimer = setTimeout(function() {
         showAfkModal();
-            }, getAfkTimeoutMs());
+      }, AFK_TIMEOUT);
     }
 
     function showAfkModal() {
@@ -2783,42 +2860,165 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     // Function to save current content-body and modal state
     function saveCurrentState() {
       try {
-        // Instead of saving raw HTML, save the current page state information
+        // Save basic page state
         const activeSidebar = localStorage.getItem('activeSidebar') || 'homeButton';
         sessionStorage.setItem('afkSavedSidebar', activeSidebar);
         
         // Save current week state
         sessionStorage.setItem('afkSavedWeekState', JSON.stringify(currentWeekState));
         
-        // Save what type of content was being viewed
-        if (activeSidebar === 'homeButton') {
-          sessionStorage.setItem('afkSavedContentType', 'analytics');
-        } else if (activeSidebar === 'fillButton') {
-          sessionStorage.setItem('afkSavedContentType', 'fillform');
-        } else if (activeSidebar === 'weekButton') {
-          sessionStorage.setItem('afkSavedContentType', 'viewform');
+        // Enhanced content type detection - check actual content, not just sidebar
+        let contentType = 'analytics'; // default
+        const viewformContainer = document.getElementById('viewform-container');
+        
+        if (viewformContainer) {
+          const viewformInner = viewformContainer.querySelector('.viewform-inner');
+          if (viewformInner && viewformInner.innerHTML.trim()) {
+            const content = viewformInner.innerHTML.toLowerCase();
+            
+            // Check for viewform-specific content patterns
+            if (content.includes('weekly accomplishment report') || 
+                content.includes('task accomplished') ||
+                content.includes('weekly-report-table') ||
+                content.includes('time-in') ||
+                content.includes('time-out') ||
+                content.includes('viewform') ||
+                content.includes('accomplishment') ||
+                content.includes('week of')) {
+              contentType = 'viewform';
+              console.log('Detected viewform content');
+            } 
+            // Check for analytics/dashboard content
+            else if (content.includes('analytics') || 
+                     content.includes('dashboard') ||
+                     content.includes('chart') ||
+                     content.includes('graph') ||
+                     content.includes('report summary')) {
+              contentType = 'analytics';
+              console.log('Detected analytics content');
+            }
+            // If sidebar indicates viewform but content doesn't match, trust the sidebar
+            else if (activeSidebar === 'weekButton') {
+              contentType = 'viewform';
+              console.log('Forced viewform based on weekButton sidebar');
+            }
+          } else {
+            // Empty or no content - use sidebar to determine what should be loaded
+            if (activeSidebar === 'weekButton') {
+              contentType = 'viewform';
+              console.log('Empty content, using weekButton to set viewform');
+            } else if (activeSidebar === 'fillButton') {
+              contentType = 'fillform';
+              console.log('Empty content, using fillButton to set fillform');
+            } else {
+              contentType = 'analytics';
+              console.log('Empty content, defaulting to analytics');
+            }
+          }
         } else {
-          sessionStorage.setItem('afkSavedContentType', 'analytics'); // default
+          // No container found - use sidebar state
+          if (activeSidebar === 'weekButton') {
+            contentType = 'viewform';
+          } else if (activeSidebar === 'fillButton') {
+            contentType = 'fillform';
+          } else {
+            contentType = 'analytics';
+          }
         }
         
-        // Check if any modal is currently open and save its ID
-        const openModals = document.querySelectorAll('.modal[style*="flex"], .modal[style*="block"]');
-        let openModalId = null;
-        openModals.forEach(modal => {
+        sessionStorage.setItem('afkSavedContentType', contentType);
+        
+        // Save the current viewform content if in viewform view
+        if (contentType === 'viewform') {
+          // Save current week parameters for viewform restoration
+          sessionStorage.setItem('afkSavedViewformWeek', currentWeekState.week);
+          sessionStorage.setItem('afkSavedViewformYear', currentWeekState.year);
+          sessionStorage.setItem('afkSavedViewformRange', currentWeekState.range);
+          console.log('Saved viewform parameters:', {
+            week: currentWeekState.week,
+            year: currentWeekState.year,
+            range: currentWeekState.range
+          });
+        }
+        
+        // Enhanced: Save ALL open modals and their states
+        const openModals = [];
+        const allModals = document.querySelectorAll('.modal');
+        
+        allModals.forEach(modal => {
           if (modal.style.display === 'flex' || modal.style.display === 'block') {
             if (modal.id !== 'afkModal') { // Don't save the AFK modal itself
-              openModalId = modal.id;
+              const modalState = {
+                id: modal.id,
+                display: modal.style.display
+              };
+              
+              // Save form data if it's a form modal
+              if (modal.id === 'fillOutModal') {
+                const timeIn = document.getElementById('time-in');
+                const timeOut = document.getElementById('time-out');
+                const task = document.getElementById('task');
+                
+                modalState.formData = {
+                  timeIn: timeIn ? timeIn.value : '',
+                  timeOut: timeOut ? timeOut.value : '',
+                  task: task ? task.value : ''
+                };
+              }
+              
+              // Save schedule modal state
+              if (modal.id === 'scheduleModal') {
+                const scheduleData = {};
+                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
+                  const amSel = document.getElementById(`official-${day}-am`);
+                  const pmSel = document.getElementById(`official-${day}-pm`);
+                  
+                  scheduleData[day] = {
+                    am: amSel ? amSel.value : '',
+                    pm: pmSel ? pmSel.value : ''
+                  };
+                });
+                const company = document.getElementById('company');
+                scheduleData.company = company ? company.value : '';
+                modalState.scheduleData = scheduleData;
+              }
+              
+              // Save week select modal state
+              if (modal.id === 'weekSelectModal') {
+                const weekDropdown = document.getElementById('weekDropdown');
+                modalState.weekSelectData = {
+                  selectedWeek: weekDropdown ? weekDropdown.value : '',
+                  selectedIndex: weekDropdown ? weekDropdown.selectedIndex : -1
+                };
+              }
+              
+              // Save profile modal states
+              if (modal.id === 'userProfileModal' || modal.id === 'editProfileModal') {
+                modalState.profileData = {
+                  // Just mark that profile modal was open
+                  wasOpen: true
+                };
+              }
+              
+              openModals.push(modalState);
             }
           }
         });
         
-        if (openModalId) {
-          sessionStorage.setItem('afkSavedModal', openModalId);
+        // Save all modal states
+        if (openModals.length > 0) {
+          sessionStorage.setItem('afkSavedModals', JSON.stringify(openModals));
         } else {
-          sessionStorage.removeItem('afkSavedModal');
+          sessionStorage.removeItem('afkSavedModals');
         }
         
-        console.log('State saved for AFK recovery');
+        console.log('Complete state saved for AFK recovery:', {
+          sidebar: activeSidebar,
+          contentType: contentType,
+          modals: openModals.length,
+          modalIds: openModals.map(m => m.id),
+          weekState: currentWeekState
+        });
       } catch (error) {
         console.error('Error saving AFK state:', error);
       }
@@ -2829,19 +3029,27 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       try {
         const savedSidebar = sessionStorage.getItem('afkSavedSidebar');
         const savedWeekState = sessionStorage.getItem('afkSavedWeekState');
-        const savedModal = sessionStorage.getItem('afkSavedModal');
+        const savedModals = sessionStorage.getItem('afkSavedModals');
         const savedContentType = sessionStorage.getItem('afkSavedContentType');
         
+        console.log('Restoring AFK state:', {
+          sidebar: savedSidebar,
+          contentType: savedContentType,
+          weekState: savedWeekState
+        });
+        
+        // Restore week state first
         if (savedWeekState) {
           try {
             currentWeekState = JSON.parse(savedWeekState);
+            console.log('Restored week state:', currentWeekState);
           } catch (e) {
             console.warn('Failed to restore week state:', e);
           }
         }
         
+        // Restore active sidebar IMMEDIATELY (before content loads)
         if (savedSidebar) {
-          // Restore active sidebar
           const sidebarItems = ['homeButton','fillButton','weekButton','scheduleButton'];
           sidebarItems.forEach(id => {
             const el = document.getElementById(id);
@@ -2852,48 +3060,145 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           if (activeEl) {
             activeEl.classList.add('active-nav');
             localStorage.setItem('activeSidebar', savedSidebar);
+            console.log('Restored sidebar state:', savedSidebar);
           }
         }
         
-        // Properly reload content using existing functions instead of raw HTML
-        if (savedContentType) {
-          setTimeout(() => {
-            try {
-              if (savedContentType === 'analytics') {
-                loadAnalytics();
-              } else if (savedContentType === 'fillform') {
-                loadTodayForm();
-              } else if (savedContentType === 'viewform') {
-                loadViewForm(currentWeekState.week, currentWeekState.range, currentWeekState.year);
-              } else {
-                loadAnalytics(); // fallback
-              }
-            } catch (e) {
-              console.warn('Failed to reload content:', e);
-              // Fallback to analytics
+        // Determine what content to restore based on BOTH sidebar and content type
+        let shouldRestoreViewform = false;
+        let shouldRestoreAnalytics = false;
+        
+        if (savedContentType === 'viewform' || savedSidebar === 'weekButton') {
+          shouldRestoreViewform = true;
+        } else if (savedContentType === 'analytics' || savedSidebar === 'homeButton') {
+          shouldRestoreAnalytics = true;
+        } else if (savedSidebar === 'fillButton') {
+          // For fillButton, check content type to decide base content
+          if (savedContentType === 'viewform') {
+            shouldRestoreViewform = true;
+          } else {
+            shouldRestoreAnalytics = true;
+          }
+        } else if (savedSidebar === 'scheduleButton') {
+          // For scheduleButton, check content type to decide base content
+          if (savedContentType === 'viewform') {
+            shouldRestoreViewform = true;
+          } else {
+            shouldRestoreAnalytics = true;
+          }
+        } else {
+          shouldRestoreAnalytics = true; // fallback
+        }
+        
+        // Restore base content
+        setTimeout(() => {
+          try {
+            if (shouldRestoreViewform) {
+              const savedWeek = sessionStorage.getItem('afkSavedViewformWeek') || currentWeekState.week;
+              const savedYear = sessionStorage.getItem('afkSavedViewformYear') || currentWeekState.year;
+              const savedRange = sessionStorage.getItem('afkSavedViewformRange') || currentWeekState.range;
+              console.log('Restoring viewform with:', { week: savedWeek, year: savedYear, range: savedRange });
+              loadViewForm(savedWeek, savedRange, savedYear);
+            } else {
+              console.log('Restoring analytics dashboard');
               loadAnalytics();
             }
-          }, 300);
+          } catch (e) {
+            console.warn('Failed to reload content:', e);
+            loadAnalytics();
+          }
+        }, 300);
+        
+        // Restore all modals with their states
+        if (savedModals) {
+          try {
+            const modalStates = JSON.parse(savedModals);
+            console.log('Restoring modals:', modalStates.map(m => m.id));
+            
+            // Restore modals after base content is loaded
+            setTimeout(() => {
+              modalStates.forEach(modalState => {
+                const modal = document.getElementById(modalState.id);
+                if (modal) {
+                  modal.style.display = modalState.display || 'flex';
+                  
+                  // Restore form data for fillOutModal
+                  if (modalState.id === 'fillOutModal' && modalState.formData) {
+                    const timeIn = document.getElementById('time-in');
+                    const timeOut = document.getElementById('time-out');
+                    const task = document.getElementById('task');
+                    
+                    if (timeIn) timeIn.value = modalState.formData.timeIn || '';
+                    if (timeOut) timeOut.value = modalState.formData.timeOut || '';
+                    if (task) task.value = modalState.formData.task || '';
+                    
+                    console.log('Restored fillOut form data');
+                  }
+                  
+                  // Restore schedule modal data
+                  if (modalState.id === 'scheduleModal' && modalState.scheduleData) {
+                    // First attach listeners and populate selects
+                    try { attachScheduleListeners(); } catch (e) { console.error('attachScheduleListeners error', e); }
+                    
+                    // Then restore the data
+                    setTimeout(() => {
+                      ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
+                        if (modalState.scheduleData[day]) {
+                          const amSel = document.getElementById(`official-${day}-am`);
+                          const pmSel = document.getElementById(`official-${day}-pm`);
+                          
+                          if (amSel) amSel.value = modalState.scheduleData[day].am || '';
+                          if (pmSel) pmSel.value = modalState.scheduleData[day].pm || '';
+                          
+                          updateDayDisplay(day);
+                          updateHidden(day);
+                        }
+                      });
+                      
+                      const company = document.getElementById('company');
+                      if (company && modalState.scheduleData.company) {
+                        company.value = modalState.scheduleData.company;
+                      }
+                      
+                      console.log('Restored schedule modal data');
+                    }, 100);
+                  }
+                  
+                  // Restore week select modal data
+                  if (modalState.id === 'weekSelectModal' && modalState.weekSelectData) {
+                    const weekDropdown = document.getElementById('weekDropdown');
+                    if (weekDropdown && modalState.weekSelectData.selectedIndex >= 0) {
+                      weekDropdown.selectedIndex = modalState.weekSelectData.selectedIndex;
+                    }
+                    console.log('Restored week select modal data');
+                  }
+                  
+                  // Restore profile modals
+                  if (modalState.id === 'userProfileModal' || modalState.id === 'editProfileModal') {
+                    // Profile modals don't need special data restoration
+                    modal.style.display = 'flex';
+                    console.log('Restored profile modal');
+                  }
+                  
+                  console.log(`Restored modal: ${modalState.id}`);
+                }
+              });
+            }, shouldRestoreViewform ? 1200 : 800); // Longer delay for viewform
+          } catch (e) {
+            console.error('Failed to restore modal states:', e);
+          }
         }
         
-        // Restore modal if one was open
-        if (savedModal) {
-          setTimeout(() => {
-            const modal = document.getElementById(savedModal);
-            if (modal) {
-              modal.style.display = 'flex';
-              document.body.classList.add('modal-open');
-            }
-          }, 800); // Longer delay to ensure content is fully loaded
-        }
-        
-        // Clean up saved state
+        // Clean up all saved state
         sessionStorage.removeItem('afkSavedSidebar');
         sessionStorage.removeItem('afkSavedWeekState');
-        sessionStorage.removeItem('afkSavedModal');
+        sessionStorage.removeItem('afkSavedModals');
         sessionStorage.removeItem('afkSavedContentType');
+        sessionStorage.removeItem('afkSavedViewformWeek');
+        sessionStorage.removeItem('afkSavedViewformYear');
+        sessionStorage.removeItem('afkSavedViewformRange');
         
-        console.log('AFK state restored successfully');
+        console.log('Complete AFK state restored successfully');
       } catch (error) {
         console.error('Error restoring AFK state:', error);
       }
@@ -3016,65 +3321,6 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       }
     });
   })();
-  
-    // Inactivity settings UI wiring (applies immediately, saved to localStorage)
-    (function() {
-        function applyAfkSettingsFromStorageToUI() {
-            try {
-                const input = document.getElementById('afk-time-value');
-                const minsRadio = document.querySelector('input[name="afk-time-unit"][value="minutes"]');
-                const hoursRadio = document.querySelector('input[name="afk-time-unit"][value="hours"]');
-                if (!input || !minsRadio || !hoursRadio) return;
-
-                const rawVal = localStorage.getItem('afk_time_value');
-                const rawUnit = localStorage.getItem('afk_time_unit');
-                const val = parseInt(rawVal || '');
-                if (!isNaN(val) && val > 0) input.value = String(val);
-                if (rawUnit === 'hours') {
-                    hoursRadio.checked = true;
-                } else {
-                    minsRadio.checked = true;
-                }
-            } catch (e) { /* ignore */ }
-        }
-
-        function persistAfkSettingsAndResetTimer() {
-            try {
-                const input = document.getElementById('afk-time-value');
-                const unit = document.querySelector('input[name="afk-time-unit"]:checked');
-                if (!input || !unit) return;
-                const val = parseInt(input.value, 10);
-                if (!isNaN(val) && val > 0) {
-                    localStorage.setItem('afk_time_value', String(val));
-                    localStorage.setItem('afk_time_unit', unit.value === 'hours' ? 'hours' : 'minutes');
-                    // Trigger the AFK timer module to use new timeout by simulating activity
-                    const evt = new Event('mousemove');
-                    document.dispatchEvent(evt);
-                }
-            } catch (e) { /* ignore */ }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // Preload UI from storage
-            applyAfkSettingsFromStorageToUI();
-            // Attach listeners to persist on change
-            const input = document.getElementById('afk-time-value');
-            const radios = document.querySelectorAll('input[name="afk-time-unit"]');
-            if (input) {
-                input.addEventListener('change', persistAfkSettingsAndResetTimer);
-                input.addEventListener('blur', persistAfkSettingsAndResetTimer);
-            }
-            radios.forEach(r => r.addEventListener('change', persistAfkSettingsAndResetTimer));
-
-            // Also ensure UI is applied whenever the profile modal opens
-            const fullnameBtn = document.getElementById('headerFullnameBtn');
-            if (fullnameBtn) {
-                fullnameBtn.addEventListener('click', function() {
-                    setTimeout(applyAfkSettingsFromStorageToUI, 0);
-                });
-            }
-        });
-    })();
   </script>
     <script>
         // Sidebar hover/click behavior: expand on hover, lock open on click, and overlay handling
