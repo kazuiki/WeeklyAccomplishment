@@ -657,6 +657,42 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         <link rel="stylesheet" href="css/homepage.css">
         <!-- Font Awesome for icons in the sidebar -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+                <style>
+                    /* Floating Printable View button */
+                    .floating-print-btn {
+                        position: fixed;
+                        right: 24px;
+                        bottom: 24px;
+                        display: none; /* hidden by default */
+                        align-items: center;
+                        gap: 10px;
+                        padding: 10px 14px;
+                        background: #2c5e8f;
+                        color: #fff;
+                        border: none;
+                        border-radius: 28px;
+                        box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+                        cursor: pointer;
+                        z-index: 5000; /* keep above overlays */
+                        font-weight: 600;
+                        letter-spacing: .2px;
+                        user-select: none;
+                        outline: none;
+                        transition: box-shadow 0.2s ease;
+                        will-change: transform;
+                    }
+                    .floating-print-btn img {
+                        width: 20px;
+                        height: 20px;
+                        object-fit: contain;
+                        filter: brightness(0) invert(1);
+                    }
+                    .floating-print-btn:hover { box-shadow: 0 14px 30px rgba(0,0,0,0.25); }
+                    .floating-print-btn:active { box-shadow: 0 10px 24px rgba(0,0,0,0.2); }
+                    @media (max-width: 600px) {
+                        .floating-print-btn { right: 16px; bottom: 16px; padding: 9px 12px; }
+                    }
+                </style>
 </head>
 <body>
   <div class="main-layout">
@@ -812,8 +848,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     </div>
   </div>
 
-        <!-- NOTE: The Edit Profile modal is relocated to be nested under the User Profile modal container so
-                 it can be opened from the profile picture edit overlay. The modal id remains `editProfileModal`. -->
+    <!-- Floating button (no function yet) -->
+    <button id="printableViewBtn" class="floating-print-btn" type="button" title="Printable View">
+        <img src="img/printer.png" alt="Printer"> Printable View
+    </button>
 
     <!-- User Profile Modal -->
     <div class="modal" id="userProfileModal" style="display:none;">
@@ -856,9 +894,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 <div class="modal" id="logoutModal">
     <div class="modal-content logout-modal">
         <h2 class="logout-title">Are you sure you want to logout?</h2>
-        <div class="modal-buttons logout-confirm">
-            <button class="btn cancel-outline" onclick="closeModal()">Cancel</button>
-            <button class="btn confirm-filled" onclick="logout()">Confirm</button>
+        <div class="modal-buttons logout-confirm">  
+        <button class="btn confirm-filled" onclick="logout()">Confirm</button>  
+        <button class="btn cancel-outline" onclick="closeModal()">Cancel</button>
         </div>
     </div>
 </div>
@@ -879,8 +917,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     <div class="modal-content">
       <h2>Select Week to View</h2>
       <div class="week-select">
-        <select id="weekDropdown" onchange="selectWeekDropdown(this.value)">
-          <option value="" disabled selected>-- Select Week --</option>
+        <select id="weekDropdown">
+          <option value="" disabled>-- Select Week --</option>
           <?php
           // Compute initial week range from users.created_at when available.
           // If not available, fall back to any server-provided $initialRangeStart, then to earliest recorded date, then to project start.
@@ -1007,7 +1045,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           ?>
         </select>
       </div>
-      <div style="display:flex; justify-content:center; margin-top:20px;">
+      <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
+        <button class="btn" onclick="loadSelectedWeek()" style="background-color: #28a745 !important; border-color: #28a745 !important; color: white !important; padding: 8px 16px; border-radius: 4px; border: 1px solid;">Load Week</button>
         <button class="btn cancel-red-outline" onclick="closeWeekModal()">Exit</button>
       </div>
     </div>
@@ -1053,6 +1092,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                             <button class="btn cancel-red-outline" onclick="closeFillModal()">Close</button>
                         </div>
       </form>
+      <p id="formMessage"></p>
     </div>
   </div>
 
@@ -1122,7 +1162,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             // Skip modal buttons to prevent position changes
             if (button.closest('#userProfileModal') || 
                 button.classList.contains('close-button') || 
-                button.classList.contains('profile-edit-overlay')) {
+                button.classList.contains('profile-edit-overlay') ||
+                button.id === 'printableViewBtn') {
                 return;
             }
 
@@ -1317,6 +1358,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         @keyframes successFlash {
             0%, 100% { background-color: transparent; }
             50% { background-color: rgba(40, 167, 69, 0.2); }
+        }
+        
+        /* Viewform transition blink effect */
+        .viewform-inner {
+            transition: opacity 0.1s ease-in-out;
+        }
+        
+        @keyframes viewformBlink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
         }
     `;
     document.head.appendChild(animationStyles);
@@ -1676,67 +1728,46 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     // Quick action implementations
     function setSameScheduleAllDays() {
-        // Copy Monday values into all other days (Tue-Sat, and Sun if present)
+        // copy monday values into other days
         const monStart = document.getElementById('official-mon-am') ? document.getElementById('official-mon-am').value : '';
         const monEnd = document.getElementById('official-mon-pm') ? document.getElementById('official-mon-pm').value : '';
-        if (!monStart && !monEnd) { /* nothing to copy */ return; }
-        ['tue','wed','thu','fri','sat','sun'].forEach(day => {
+    if (!monStart && !monEnd) { /* nothing to copy */ return; }
+        ['tue','wed','thu','fri','sat'].forEach(day => {
             const a = document.getElementById(`official-${day}-am`);
             const b = document.getElementById(`official-${day}-pm`);
-            if (a) a.value = monStart;
-            if (b) b.value = monEnd;
+            if (a) { a.value = monStart; }
+            if (b) { b.value = monEnd; }
             updateDayDisplay(day);
             updateHidden(day);
         });
+    // feedback: no confirmation popup (inline updates applied)
     }
 
     function setWeekdaysOnly() {
-        // Use Monday's values as the source
-        const monStart = document.getElementById('official-mon-am') ? document.getElementById('official-mon-am').value : '';
-        const monEnd = document.getElementById('official-mon-pm') ? document.getElementById('official-mon-pm').value : '';
-        if (!monStart && !monEnd) { /* nothing to copy */ return; }
-        // Set Monday–Friday to Monday's value
+        const start = '9:00 AM';
+        const end = '5:00 PM';
         ['mon','tue','wed','thu','fri'].forEach(day => {
             const a = document.getElementById(`official-${day}-am`);
             const b = document.getElementById(`official-${day}-pm`);
-            if (a) a.value = monStart;
-            if (b) b.value = monEnd;
+            if (a) a.value = start;
+            if (b) b.value = end;
             updateDayDisplay(day);
             updateHidden(day);
         });
-        // Clear Saturday and Sunday if present
-        ['sat','sun'].forEach(day => {
-            const a = document.getElementById(`official-${day}-am`);
-            const b = document.getElementById(`official-${day}-pm`);
-            if (a) a.value = '';
-            if (b) b.value = '';
-            updateDayDisplay(day);
-            updateHidden(day);
-        });
+    // feedback: no confirmation popup (inline updates applied)
     }
 
     function setWeekendOnly() {
-        // Use Monday's values as the source
-        const monStart = document.getElementById('official-mon-am') ? document.getElementById('official-mon-am').value : '';
-        const monEnd = document.getElementById('official-mon-pm') ? document.getElementById('official-mon-pm').value : '';
-        // Set only Saturday to Monday's value
-        ['sat'].forEach(day => {
-            const a = document.getElementById(`official-${day}-am`);
-            const b = document.getElementById(`official-${day}-pm`);
-            if (a) a.value = monStart;
-            if (b) b.value = monEnd;
-            updateDayDisplay(day);
-            updateHidden(day);
-        });
-        // Clear Monday–Friday and Sunday (if present)
-        ['mon','tue','wed','thu','fri','sun'].forEach(day => {
-            const a = document.getElementById(`official-${day}-am`);
-            const b = document.getElementById(`official-${day}-pm`);
-            if (a) a.value = '';
-            if (b) b.value = '';
-            updateDayDisplay(day);
-            updateHidden(day);
-        });
+        const start = '10:00 AM';
+        const end = '2:00 PM';
+        const day = 'sat';
+        const a = document.getElementById(`official-${day}-am`);
+        const b = document.getElementById(`official-${day}-pm`);
+        if (a) a.value = start;
+        if (b) b.value = end;
+        updateDayDisplay(day);
+        updateHidden(day);
+    // feedback: no confirmation popup (inline updates applied)
     }
 
     function clearAllSchedules() {
@@ -1915,6 +1946,30 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         .catch(err => console.error("Error loading record:", err));
     }
 
+    // Load selected week from dropdown
+    function loadSelectedWeek() {
+        const dropdown = document.getElementById('weekDropdown');
+        if (!dropdown || !dropdown.value) {
+            alert('Please select a week first.');
+            return;
+        }
+        
+        const selected = dropdown.options[dropdown.selectedIndex];
+        const weekNum = dropdown.value;
+        const range = selected.getAttribute('data-range');
+        const year = selected.getAttribute('data-year');
+        
+        // Update current state
+        currentWeekState.week = weekNum;
+        currentWeekState.year = year;
+        currentWeekState.range = range;
+        
+        // Load the selected week
+        loadViewForm(weekNum, range, year);
+        closeWeekModal();
+    }
+
+
     // Week selection
     function selectWeekDropdown(weekNum) {
         const dropdown = document.getElementById('weekDropdown');
@@ -1927,6 +1982,26 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         currentWeekState.year = year;
         currentWeekState.range = range;
        
+        // Always load the selected week (even if it's the same as currently displayed)
+        loadViewForm(weekNum, range, year);
+        closeWeekModal();
+    }
+
+    // Function to manually trigger week load (called when clicking already-selected option)
+    function loadSelectedWeek() {
+        const dropdown = document.getElementById('weekDropdown');
+        if (!dropdown || dropdown.selectedIndex < 0) return;
+        
+        const selected = dropdown.options[dropdown.selectedIndex];
+        const weekNum = selected.value;
+        const range = selected.getAttribute('data-range');
+        const year = selected.getAttribute('data-year');
+        
+        // Update current state
+        currentWeekState.week = weekNum;
+        currentWeekState.year = year;
+        currentWeekState.range = range;
+        
         // Load the selected week
         loadViewForm(weekNum, range, year);
         closeWeekModal();
@@ -1936,6 +2011,12 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function loadViewForm(week, range, year) {
         const container = document.getElementById('viewform-container');
         if (!container) return;
+
+        // Show printable button when viewform is being shown
+        try {
+            const pbtn = document.getElementById('printableViewBtn');
+            if (pbtn) pbtn.style.display = 'inline-flex';
+        } catch (e) { /* ignore */ }
 
         
 
@@ -1949,6 +2030,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             container.innerHTML = '';
             container.appendChild(inner);
         }
+
+        // Add blink transition effect before loading new content
+        inner.style.transition = 'opacity 0.1s ease-in-out';
+        inner.style.opacity = '0';
 
         // Immediately fetch and replace content asynchronously while keeping current UI visible
         const previousHtml = inner.innerHTML; // keep a backup in case of errors
@@ -2015,11 +2100,16 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     }
 
                     // Replace inner content when fetched and when styles have (likely) loaded.
-                    // We still wait briefly for styles to reduce flash, but we won't hide existing UI.
-                    const timeout = new Promise(resolve => setTimeout(resolve, 300));
+                    // Quick transition for snappy feel
+                    const timeout = new Promise(resolve => setTimeout(resolve, 100));
                     Promise.all([Promise.all(loadPromises), timeout]).then(() => {
                         // Replace inner content now that styles are (likely) applied
                         inner.innerHTML = newHtml;
+                        
+                        // Fade in the new content with blink effect - immediate
+                        requestAnimationFrame(() => {
+                            inner.style.opacity = '1';
+                        });
                         // Execute any scripts present in the fetched fragment
                         try {
                             const scriptNodes = Array.from(doc.querySelectorAll('script'));
@@ -2097,6 +2187,12 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             window.location.href = 'analytics.php';
             return;
         }
+
+        // Hide printable button on analytics/dashboard
+        try {
+            const pbtn = document.getElementById('printableViewBtn');
+            if (pbtn) pbtn.style.display = 'none';
+        } catch (e) { /* ignore */ }
 
         
 
@@ -2306,6 +2402,30 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             });
         })();
 
+        // Printable View button -> open viewform in new tab with filled approved fields
+        (function() {
+            const btn = document.getElementById('printableViewBtn');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                try {
+                    const container = document.getElementById('viewform-container');
+                    const scope = container ? container : document;
+                    const nameEl = scope.querySelector('.viewform-inner .line-field.bold[contenteditable="true"], .line-field.bold[contenteditable="true"]');
+                    const titleEl = scope.querySelector('.viewform-inner .line-field[contenteditable="true"]:not(.bold), .line-field[contenteditable="true"]:not(.bold)');
+                    const approvedName = nameEl ? nameEl.textContent.trim() : '';
+                    const approvedTitle = titleEl ? titleEl.textContent.trim() : '';
+
+                    const url = `viewform.php?week=${encodeURIComponent(currentWeekState.week)}&year=${encodeURIComponent(currentWeekState.year)}&range=${encodeURIComponent(currentWeekState.range)}&approved_name=${encodeURIComponent(approvedName)}&approved_title=${encodeURIComponent(approvedTitle)}&print=1`;
+                    window.open(url, '_blank');
+                } catch (err) {
+                    console.error('Printable view error:', err);
+                    // Fallback: open with only week params
+                    const url = `viewform.php?week=${encodeURIComponent(currentWeekState.week)}&year=${encodeURIComponent(currentWeekState.year)}&range=${encodeURIComponent(currentWeekState.range)}&print=1`;
+                    window.open(url, '_blank');
+                }
+            });
+        })();
+
         // Scheduling modal submit button - reuse same save_form flow for official times/company
         const scheduleSubmitBtn = document.getElementById('scheduleSubmit');
         if (scheduleSubmitBtn) {
@@ -2392,19 +2512,6 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
             accomplishmentForm.addEventListener("submit", function(e) {
                 e.preventDefault();
-               
-                // Validate times before submission
-                if (!validateAllTimes()) {
-                    const msg = document.getElementById("formMessage");
-                    if (msg) {
-                        msg.textContent = "❌ Please fix the time validation errors before submitting.";
-                        msg.style.color = "#e74c3c";
-                        msg.style.fontSize = "11px";
-                        msg.style.display = "block";
-                        setTimeout(() => { msg.style.display = "none"; }, 5000);
-                    }
-                    return;
-                }
                
                 const submitBtn = document.getElementById('submit-button');
                 const msg = document.getElementById("formMessage");
