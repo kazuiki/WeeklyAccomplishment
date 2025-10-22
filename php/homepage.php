@@ -2783,165 +2783,42 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     // Function to save current content-body and modal state
     function saveCurrentState() {
       try {
-        // Save basic page state
+        // Instead of saving raw HTML, save the current page state information
         const activeSidebar = localStorage.getItem('activeSidebar') || 'homeButton';
         sessionStorage.setItem('afkSavedSidebar', activeSidebar);
         
         // Save current week state
         sessionStorage.setItem('afkSavedWeekState', JSON.stringify(currentWeekState));
         
-        // Enhanced content type detection - check actual content, not just sidebar
-        let contentType = 'analytics'; // default
-        const viewformContainer = document.getElementById('viewform-container');
-        
-        if (viewformContainer) {
-          const viewformInner = viewformContainer.querySelector('.viewform-inner');
-          if (viewformInner && viewformInner.innerHTML.trim()) {
-            const content = viewformInner.innerHTML.toLowerCase();
-            
-            // Check for viewform-specific content patterns
-            if (content.includes('weekly accomplishment report') || 
-                content.includes('task accomplished') ||
-                content.includes('weekly-report-table') ||
-                content.includes('time-in') ||
-                content.includes('time-out') ||
-                content.includes('viewform') ||
-                content.includes('accomplishment') ||
-                content.includes('week of')) {
-              contentType = 'viewform';
-              console.log('Detected viewform content');
-            } 
-            // Check for analytics/dashboard content
-            else if (content.includes('analytics') || 
-                     content.includes('dashboard') ||
-                     content.includes('chart') ||
-                     content.includes('graph') ||
-                     content.includes('report summary')) {
-              contentType = 'analytics';
-              console.log('Detected analytics content');
-            }
-            // If sidebar indicates viewform but content doesn't match, trust the sidebar
-            else if (activeSidebar === 'weekButton') {
-              contentType = 'viewform';
-              console.log('Forced viewform based on weekButton sidebar');
-            }
-          } else {
-            // Empty or no content - use sidebar to determine what should be loaded
-            if (activeSidebar === 'weekButton') {
-              contentType = 'viewform';
-              console.log('Empty content, using weekButton to set viewform');
-            } else if (activeSidebar === 'fillButton') {
-              contentType = 'fillform';
-              console.log('Empty content, using fillButton to set fillform');
-            } else {
-              contentType = 'analytics';
-              console.log('Empty content, defaulting to analytics');
-            }
-          }
+        // Save what type of content was being viewed
+        if (activeSidebar === 'homeButton') {
+          sessionStorage.setItem('afkSavedContentType', 'analytics');
+        } else if (activeSidebar === 'fillButton') {
+          sessionStorage.setItem('afkSavedContentType', 'fillform');
+        } else if (activeSidebar === 'weekButton') {
+          sessionStorage.setItem('afkSavedContentType', 'viewform');
         } else {
-          // No container found - use sidebar state
-          if (activeSidebar === 'weekButton') {
-            contentType = 'viewform';
-          } else if (activeSidebar === 'fillButton') {
-            contentType = 'fillform';
-          } else {
-            contentType = 'analytics';
-          }
+          sessionStorage.setItem('afkSavedContentType', 'analytics'); // default
         }
         
-        sessionStorage.setItem('afkSavedContentType', contentType);
-        
-        // Save the current viewform content if in viewform view
-        if (contentType === 'viewform') {
-          // Save current week parameters for viewform restoration
-          sessionStorage.setItem('afkSavedViewformWeek', currentWeekState.week);
-          sessionStorage.setItem('afkSavedViewformYear', currentWeekState.year);
-          sessionStorage.setItem('afkSavedViewformRange', currentWeekState.range);
-          console.log('Saved viewform parameters:', {
-            week: currentWeekState.week,
-            year: currentWeekState.year,
-            range: currentWeekState.range
-          });
-        }
-        
-        // Enhanced: Save ALL open modals and their states
-        const openModals = [];
-        const allModals = document.querySelectorAll('.modal');
-        
-        allModals.forEach(modal => {
+        // Check if any modal is currently open and save its ID
+        const openModals = document.querySelectorAll('.modal[style*="flex"], .modal[style*="block"]');
+        let openModalId = null;
+        openModals.forEach(modal => {
           if (modal.style.display === 'flex' || modal.style.display === 'block') {
             if (modal.id !== 'afkModal') { // Don't save the AFK modal itself
-              const modalState = {
-                id: modal.id,
-                display: modal.style.display
-              };
-              
-              // Save form data if it's a form modal
-              if (modal.id === 'fillOutModal') {
-                const timeIn = document.getElementById('time-in');
-                const timeOut = document.getElementById('time-out');
-                const task = document.getElementById('task');
-                
-                modalState.formData = {
-                  timeIn: timeIn ? timeIn.value : '',
-                  timeOut: timeOut ? timeOut.value : '',
-                  task: task ? task.value : ''
-                };
-              }
-              
-              // Save schedule modal state
-              if (modal.id === 'scheduleModal') {
-                const scheduleData = {};
-                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
-                  const amSel = document.getElementById(`official-${day}-am`);
-                  const pmSel = document.getElementById(`official-${day}-pm`);
-                  
-                  scheduleData[day] = {
-                    am: amSel ? amSel.value : '',
-                    pm: pmSel ? pmSel.value : ''
-                  };
-                });
-                const company = document.getElementById('company');
-                scheduleData.company = company ? company.value : '';
-                modalState.scheduleData = scheduleData;
-              }
-              
-              // Save week select modal state
-              if (modal.id === 'weekSelectModal') {
-                const weekDropdown = document.getElementById('weekDropdown');
-                modalState.weekSelectData = {
-                  selectedWeek: weekDropdown ? weekDropdown.value : '',
-                  selectedIndex: weekDropdown ? weekDropdown.selectedIndex : -1
-                };
-              }
-              
-              // Save profile modal states
-              if (modal.id === 'userProfileModal' || modal.id === 'editProfileModal') {
-                modalState.profileData = {
-                  // Just mark that profile modal was open
-                  wasOpen: true
-                };
-              }
-              
-              openModals.push(modalState);
+              openModalId = modal.id;
             }
           }
         });
         
-        // Save all modal states
-        if (openModals.length > 0) {
-          sessionStorage.setItem('afkSavedModals', JSON.stringify(openModals));
+        if (openModalId) {
+          sessionStorage.setItem('afkSavedModal', openModalId);
         } else {
-          sessionStorage.removeItem('afkSavedModals');
+          sessionStorage.removeItem('afkSavedModal');
         }
         
-        console.log('Complete state saved for AFK recovery:', {
-          sidebar: activeSidebar,
-          contentType: contentType,
-          modals: openModals.length,
-          modalIds: openModals.map(m => m.id),
-          weekState: currentWeekState
-        });
+        console.log('State saved for AFK recovery');
       } catch (error) {
         console.error('Error saving AFK state:', error);
       }
@@ -2952,27 +2829,19 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       try {
         const savedSidebar = sessionStorage.getItem('afkSavedSidebar');
         const savedWeekState = sessionStorage.getItem('afkSavedWeekState');
-        const savedModals = sessionStorage.getItem('afkSavedModals');
+        const savedModal = sessionStorage.getItem('afkSavedModal');
         const savedContentType = sessionStorage.getItem('afkSavedContentType');
         
-        console.log('Restoring AFK state:', {
-          sidebar: savedSidebar,
-          contentType: savedContentType,
-          weekState: savedWeekState
-        });
-        
-        // Restore week state first
         if (savedWeekState) {
           try {
             currentWeekState = JSON.parse(savedWeekState);
-            console.log('Restored week state:', currentWeekState);
           } catch (e) {
             console.warn('Failed to restore week state:', e);
           }
         }
         
-        // Restore active sidebar IMMEDIATELY (before content loads)
         if (savedSidebar) {
+          // Restore active sidebar
           const sidebarItems = ['homeButton','fillButton','weekButton','scheduleButton'];
           sidebarItems.forEach(id => {
             const el = document.getElementById(id);
@@ -2983,145 +2852,48 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           if (activeEl) {
             activeEl.classList.add('active-nav');
             localStorage.setItem('activeSidebar', savedSidebar);
-            console.log('Restored sidebar state:', savedSidebar);
           }
         }
         
-        // Determine what content to restore based on BOTH sidebar and content type
-        let shouldRestoreViewform = false;
-        let shouldRestoreAnalytics = false;
-        
-        if (savedContentType === 'viewform' || savedSidebar === 'weekButton') {
-          shouldRestoreViewform = true;
-        } else if (savedContentType === 'analytics' || savedSidebar === 'homeButton') {
-          shouldRestoreAnalytics = true;
-        } else if (savedSidebar === 'fillButton') {
-          // For fillButton, check content type to decide base content
-          if (savedContentType === 'viewform') {
-            shouldRestoreViewform = true;
-          } else {
-            shouldRestoreAnalytics = true;
-          }
-        } else if (savedSidebar === 'scheduleButton') {
-          // For scheduleButton, check content type to decide base content
-          if (savedContentType === 'viewform') {
-            shouldRestoreViewform = true;
-          } else {
-            shouldRestoreAnalytics = true;
-          }
-        } else {
-          shouldRestoreAnalytics = true; // fallback
-        }
-        
-        // Restore base content
-        setTimeout(() => {
-          try {
-            if (shouldRestoreViewform) {
-              const savedWeek = sessionStorage.getItem('afkSavedViewformWeek') || currentWeekState.week;
-              const savedYear = sessionStorage.getItem('afkSavedViewformYear') || currentWeekState.year;
-              const savedRange = sessionStorage.getItem('afkSavedViewformRange') || currentWeekState.range;
-              console.log('Restoring viewform with:', { week: savedWeek, year: savedYear, range: savedRange });
-              loadViewForm(savedWeek, savedRange, savedYear);
-            } else {
-              console.log('Restoring analytics dashboard');
+        // Properly reload content using existing functions instead of raw HTML
+        if (savedContentType) {
+          setTimeout(() => {
+            try {
+              if (savedContentType === 'analytics') {
+                loadAnalytics();
+              } else if (savedContentType === 'fillform') {
+                loadTodayForm();
+              } else if (savedContentType === 'viewform') {
+                loadViewForm(currentWeekState.week, currentWeekState.range, currentWeekState.year);
+              } else {
+                loadAnalytics(); // fallback
+              }
+            } catch (e) {
+              console.warn('Failed to reload content:', e);
+              // Fallback to analytics
               loadAnalytics();
             }
-          } catch (e) {
-            console.warn('Failed to reload content:', e);
-            loadAnalytics();
-          }
-        }, 300);
-        
-        // Restore all modals with their states
-        if (savedModals) {
-          try {
-            const modalStates = JSON.parse(savedModals);
-            console.log('Restoring modals:', modalStates.map(m => m.id));
-            
-            // Restore modals after base content is loaded
-            setTimeout(() => {
-              modalStates.forEach(modalState => {
-                const modal = document.getElementById(modalState.id);
-                if (modal) {
-                  modal.style.display = modalState.display || 'flex';
-                  
-                  // Restore form data for fillOutModal
-                  if (modalState.id === 'fillOutModal' && modalState.formData) {
-                    const timeIn = document.getElementById('time-in');
-                    const timeOut = document.getElementById('time-out');
-                    const task = document.getElementById('task');
-                    
-                    if (timeIn) timeIn.value = modalState.formData.timeIn || '';
-                    if (timeOut) timeOut.value = modalState.formData.timeOut || '';
-                    if (task) task.value = modalState.formData.task || '';
-                    
-                    console.log('Restored fillOut form data');
-                  }
-                  
-                  // Restore schedule modal data
-                  if (modalState.id === 'scheduleModal' && modalState.scheduleData) {
-                    // First attach listeners and populate selects
-                    try { attachScheduleListeners(); } catch (e) { console.error('attachScheduleListeners error', e); }
-                    
-                    // Then restore the data
-                    setTimeout(() => {
-                      ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
-                        if (modalState.scheduleData[day]) {
-                          const amSel = document.getElementById(`official-${day}-am`);
-                          const pmSel = document.getElementById(`official-${day}-pm`);
-                          
-                          if (amSel) amSel.value = modalState.scheduleData[day].am || '';
-                          if (pmSel) pmSel.value = modalState.scheduleData[day].pm || '';
-                          
-                          updateDayDisplay(day);
-                          updateHidden(day);
-                        }
-                      });
-                      
-                      const company = document.getElementById('company');
-                      if (company && modalState.scheduleData.company) {
-                        company.value = modalState.scheduleData.company;
-                      }
-                      
-                      console.log('Restored schedule modal data');
-                    }, 100);
-                  }
-                  
-                  // Restore week select modal data
-                  if (modalState.id === 'weekSelectModal' && modalState.weekSelectData) {
-                    const weekDropdown = document.getElementById('weekDropdown');
-                    if (weekDropdown && modalState.weekSelectData.selectedIndex >= 0) {
-                      weekDropdown.selectedIndex = modalState.weekSelectData.selectedIndex;
-                    }
-                    console.log('Restored week select modal data');
-                  }
-                  
-                  // Restore profile modals
-                  if (modalState.id === 'userProfileModal' || modalState.id === 'editProfileModal') {
-                    // Profile modals don't need special data restoration
-                    modal.style.display = 'flex';
-                    console.log('Restored profile modal');
-                  }
-                  
-                  console.log(`Restored modal: ${modalState.id}`);
-                }
-              });
-            }, shouldRestoreViewform ? 1200 : 800); // Longer delay for viewform
-          } catch (e) {
-            console.error('Failed to restore modal states:', e);
-          }
+          }, 300);
         }
         
-        // Clean up all saved state
+        // Restore modal if one was open
+        if (savedModal) {
+          setTimeout(() => {
+            const modal = document.getElementById(savedModal);
+            if (modal) {
+              modal.style.display = 'flex';
+              document.body.classList.add('modal-open');
+            }
+          }, 800); // Longer delay to ensure content is fully loaded
+        }
+        
+        // Clean up saved state
         sessionStorage.removeItem('afkSavedSidebar');
         sessionStorage.removeItem('afkSavedWeekState');
-        sessionStorage.removeItem('afkSavedModals');
+        sessionStorage.removeItem('afkSavedModal');
         sessionStorage.removeItem('afkSavedContentType');
-        sessionStorage.removeItem('afkSavedViewformWeek');
-        sessionStorage.removeItem('afkSavedViewformYear');
-        sessionStorage.removeItem('afkSavedViewformRange');
         
-        console.log('Complete AFK state restored successfully');
+        console.log('AFK state restored successfully');
       } catch (error) {
         console.error('Error restoring AFK state:', error);
       }
