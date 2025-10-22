@@ -1092,8 +1092,8 @@ body::before {
   box-shadow:0 6px 18px var(--shadow-color); 
   border:1px solid var(--border-color); 
   max-height: 60vh;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-y: auto; 
+  padding-right: 12px;
 }
 .details-section .profile-section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); }
 .detail-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border-color); }
@@ -1103,9 +1103,10 @@ body::before {
 
 /* Settings row for timeout configuration */
 .detail-row.settings-row {
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 16px;
   padding: 16px 0;
 }
 
@@ -1113,10 +1114,14 @@ body::before {
   font-size: 14px;
   color: var(--primary-dark);
   font-weight: 700;
+  flex: 0 0 auto;
+  max-width: 50%;
 }
 
 .detail-row.settings-row .detail-value {
-  width: 100%;
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* Timeout setting input styling */
@@ -1124,11 +1129,10 @@ body::before {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 6px;
 }
 
 .timeout-input {
-  width: 100px;
+  width: 80px;
   padding: 8px 12px;
   border: 2px solid var(--border-color);
   border-radius: 8px;
@@ -1150,6 +1154,29 @@ body::before {
   border-color: var(--primary-main);
 }
 
+.timeout-unit-select {
+  padding: 8px 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--neutral-dark);
+  background: var(--neutral-white);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  min-width: 100px;
+}
+
+.timeout-unit-select:focus {
+  outline: none;
+  border-color: var(--primary-main);
+  box-shadow: 0 0 0 3px rgba(90, 155, 213, 0.1);
+}
+
+.timeout-unit-select:hover {
+  border-color: var(--primary-main);
+}
+
 .timeout-label {
   font-size: 14px;
   color: var(--neutral-gray);
@@ -1157,10 +1184,12 @@ body::before {
 }
 
 .timeout-description {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--neutral-gray);
   line-height: 1.4;
   font-weight: 400;
+  margin-top: 4px;
+  display: block;
 }
 
 /* Custom scrollbar for details-section */
@@ -1776,7 +1805,7 @@ body::before {
 #afkModal {
     display: none;
     position: fixed;
-    z-index: 99999 !important;
+    z-index: 9999;
     left: 0;
     top: 0;
     width: 100%;
