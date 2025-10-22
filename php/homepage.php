@@ -2992,15 +2992,56 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       // Close AFK modal
       closeAfkModal();
       
-      // Call logout function
+      // Call logout function with AFK logging
       try {
-        logout();
+        logoutWithAFK();
       } catch (err) {
         console.error('Logout error from AFK:', err);
-        // Fallback: direct redirect
-        window.location.href = 'Login.php';
+        // Fallback: log AFK logout and redirect
+        logAfkLogout().finally(() => {
+          window.location.href = 'Login.php';
+        });
       }
     };
+
+    // Function to handle AFK logout with proper logging
+    function logoutWithAFK() {
+      // First log the AFK logout, then proceed with normal logout
+      fetch('Logout.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'afk_logout=true',
+        credentials: 'same-origin'
+      })
+      .then(response => {
+        if (response.ok) {
+          window.location.href = 'Login.php';
+        } else {
+          console.error('AFK logout failed');
+          window.location.href = 'Login.php';
+        }
+      })
+      .catch(error => {
+        console.error('Error during AFK logout:', error);
+        window.location.href = 'Login.php';
+      });
+    }
+
+    // Fallback function to log AFK logout
+    function logAfkLogout() {
+      return fetch('Logout.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'afk_logout=true',
+        credentials: 'same-origin'
+      }).catch(error => {
+        console.error('Failed to log AFK logout:', error);
+      });
+    }
 
     // Events that indicate user activity
     const activityEvents = [
