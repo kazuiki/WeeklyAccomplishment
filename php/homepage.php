@@ -884,6 +884,16 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     <div class="detail-row"><div class="detail-label">Email Account</div><div class="detail-value"><?= htmlspecialchars($user_email ?? $user_profile['student_email'] ?? '') ?></div></div>
                     <div class="detail-row"><div class="detail-label">Course</div><div class="detail-value"><?= htmlspecialchars($user_profile['student_course'] ?? '') ?></div></div>
                     <div class="detail-row"><div class="detail-label">Year</div><div class="detail-value"><?= htmlspecialchars($user_profile['student_year'] ?? '') ?></div></div>
+                    <div class="detail-row settings-row">
+                        <div class="detail-label">Auto-Logout Timer</div>
+                        <div class="detail-value">
+                            <div class="timeout-setting">
+                                <input type="number" id="inactivityTimeout" min="1" max="120" value="2" class="timeout-input" />
+                                <span class="timeout-label">minutes</span>
+                            </div>
+                            <div class="timeout-description">System will automatically logout after this period of inactivity</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2824,9 +2834,52 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
   // AFK Timer - Auto logout after inactivity
   (function() {
-    const AFK_TIMEOUT = 2 * 60 * 1000; // 1 minute in milliseconds (you can adjust this)
+    // Load saved timeout from localStorage or default to 2 minutes
+    function getInactivityTimeout() {
+      const saved = localStorage.getItem('inactivityTimeout');
+      return saved ? parseInt(saved) * 60 * 1000 : 2 * 60 * 1000; // Convert minutes to milliseconds
+    }
+
+    const AFK_TIMEOUT = getInactivityTimeout();
     let afkTimer;
     let afkModalShown = false;
+
+    // Update the timeout input value on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      const timeoutInput = document.getElementById('inactivityTimeout');
+      if (timeoutInput) {
+        const savedMinutes = localStorage.getItem('inactivityTimeout') || '2';
+        timeoutInput.value = savedMinutes;
+        
+        // Save timeout when user changes it
+        timeoutInput.addEventListener('change', function() {
+          let value = parseInt(this.value);
+          // Validate range
+          if (isNaN(value) || value < 1) value = 1;
+          if (value > 120) value = 120;
+          this.value = value;
+          
+          // Save to localStorage
+          localStorage.setItem('inactivityTimeout', value);
+          
+          // Restart the AFK timer with new timeout
+          if (!afkModalShown) {
+            resetAfkTimer();
+          }
+        });
+        
+        // Also handle on input for real-time validation
+        timeoutInput.addEventListener('input', function() {
+          let value = parseInt(this.value);
+          if (isNaN(value) || value < 1) {
+            this.value = 1;
+          }
+          if (value > 120) {
+            this.value = 120;
+          }
+        });
+      }
+    });
 
     function resetAfkTimer() {
       // Don't reset timer if AFK modal is already shown - user must click the button
@@ -2837,10 +2890,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       // Clear existing timer
       clearTimeout(afkTimer);
 
+      // Get current timeout setting
+      const currentTimeout = getInactivityTimeout();
+
       // Set new timer
       afkTimer = setTimeout(function() {
         showAfkModal();
-      }, AFK_TIMEOUT);
+      }, currentTimeout);
     }
 
     function showAfkModal() {

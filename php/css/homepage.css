@@ -1085,12 +1085,102 @@ body::before {
 .profile-info { flex:1; text-align:left; }
 .user-name { font-size:22px; font-weight:700; margin-bottom:6px; color:var(--neutral-dark); }
 .user-email { color:var(--neutral-gray); font-size:14px; }
-.details-section { background:var(--neutral-light); border-radius:10px; padding:18px; box-shadow:0 6px 18px var(--shadow-color); border:1px solid var(--border-color); }
+.details-section { 
+  background:var(--neutral-light); 
+  border-radius:10px; 
+  padding:18px; 
+  box-shadow:0 6px 18px var(--shadow-color); 
+  border:1px solid var(--border-color); 
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 .details-section .profile-section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); }
 .detail-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border-color); }
 .detail-row:last-child { border-bottom:none; }
 .detail-label { color:var(--neutral-gray); font-weight:600; }
 .detail-value { color:var(--neutral-dark); font-weight:600; }
+
+/* Settings row for timeout configuration */
+.detail-row.settings-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.detail-row.settings-row .detail-label {
+  font-size: 14px;
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+.detail-row.settings-row .detail-value {
+  width: 100%;
+}
+
+/* Timeout setting input styling */
+.timeout-setting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.timeout-input {
+  width: 100px;
+  padding: 8px 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--neutral-dark);
+  background: var(--neutral-white);
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.timeout-input:focus {
+  outline: none;
+  border-color: var(--primary-main);
+  box-shadow: 0 0 0 3px rgba(90, 155, 213, 0.1);
+}
+
+.timeout-input:hover {
+  border-color: var(--primary-main);
+}
+
+.timeout-label {
+  font-size: 14px;
+  color: var(--neutral-gray);
+  font-weight: 500;
+}
+
+.timeout-description {
+  font-size: 12px;
+  color: var(--neutral-gray);
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+/* Custom scrollbar for details-section */
+.details-section::-webkit-scrollbar {
+  width: 8px;
+}
+
+.details-section::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.details-section::-webkit-scrollbar-thumb {
+  background: rgba(90, 155, 213, 0.5);
+  border-radius: 10px;
+}
+
+.details-section::-webkit-scrollbar-thumb:hover {
+  background: rgba(90, 155, 213, 0.7);
+}
 
 .profile-picture-container { position: relative; }
 .profile-edit-overlay {
