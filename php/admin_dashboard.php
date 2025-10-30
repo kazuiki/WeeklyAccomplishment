@@ -22,6 +22,9 @@ $search = $_GET['search'] ?? '';
 $date_from = $_GET['date_from'] ?? '';
 $date_to = $_GET['date_to'] ?? '';
 $user_filter = $_GET['user_id'] ?? '';
+$page = max(1, intval($_GET['page'] ?? 1)); // Current page, minimum 1
+$records_per_page = 5; // Records per page
+$offset = ($page - 1) * $records_per_page;
 
 // Fetch all users for filter dropdown
 $users_query = "SELECT user_id, username, email FROM users ORDER BY username";
@@ -33,6 +36,12 @@ if ($users_result) {
     }
 }
 
+// Build base query for counting total records
+$count_query = "SELECT COUNT(*) as total_records
+                FROM weekly_accomplishments wa
+                LEFT JOIN users u ON wa.users_user_id = u.user_id
+                WHERE 1=1";
+
 // Build query for weekly accomplishments with filters
 $query = "SELECT 
             wa.id,
@@ -41,7 +50,7 @@ $query = "SELECT
             wa.time_out,
             wa.task_completed,
             wa.grand_total,
-            wa.created_at,
+            wa.last_updated_at,
             u.user_id,
             u.username,
             u.email
@@ -53,7 +62,9 @@ $params = [];
 $types = "";
 
 if (!empty($search)) {
-    $query .= " AND (u.username LIKE ? OR u.email LIKE ? OR wa.task_completed LIKE ?)";
+    $search_condition = " AND (u.username LIKE ? OR u.email LIKE ? OR wa.task_completed LIKE ?)";
+    $count_query .= $search_condition;
+    $query .= $search_condition;
     $search_param = "%$search%";
     $params[] = $search_param;
     $params[] = $search_param;
@@ -62,24 +73,54 @@ if (!empty($search)) {
 }
 
 if (!empty($date_from)) {
-    $query .= " AND wa.date_record >= ?";
+    $date_condition = " AND wa.date_record >= ?";
+    $count_query .= $date_condition;
+    $query .= $date_condition;
     $params[] = $date_from;
     $types .= "s";
 }
 
 if (!empty($date_to)) {
-    $query .= " AND wa.date_record <= ?";
+    $date_condition = " AND wa.date_record <= ?";
+    $count_query .= $date_condition;
+    $query .= $date_condition;
     $params[] = $date_to;
     $types .= "s";
 }
 
 if (!empty($user_filter)) {
-    $query .= " AND wa.users_user_id = ?";
+    $user_condition = " AND wa.users_user_id = ?";
+    $count_query .= $user_condition;
+    $query .= $user_condition;
     $params[] = $user_filter;
     $types .= "i";
 }
 
-$query .= " ORDER BY wa.date_record DESC, wa.created_at DESC LIMIT 200";
+$query .= " ORDER BY wa.date_record DESC, wa.last_updated_at DESC LIMIT ? OFFSET ?";
+
+// Get total count for pagination
+$total_records = 0;
+$count_stmt = $conn->prepare($count_query);
+if ($count_stmt) {
+    if (!empty($params)) {
+        $count_stmt->bind_param($types, ...$params);
+    }
+    $count_stmt->execute();
+    $count_result = $count_stmt->get_result();
+    if ($count_row = $count_result->fetch_assoc()) {
+        $total_records = $count_row['total_records'];
+    }
+    $count_stmt->close();
+}
+
+// Calculate pagination
+$total_pages = ceil($total_records / $records_per_page);
+$total_pages = max(1, $total_pages); // Ensure at least 1 page
+
+// Add pagination parameters to the main query
+$params[] = $records_per_page;
+$params[] = $offset;
+$types .= "ii";
 
 // Prepare and execute safely with fallbacks and clear errors
 $result = null;
@@ -110,8 +151,8 @@ if ($stmt === false) {
             } else {
                 // Fallback when mysqlnd is not available: fetch via bind_result
                 $rows = [];
-                $id = $date_record = $time_in = $time_out = $task_completed = $grand_total = $created_at = $user_id = $username = $email = null;
-                $stmt->bind_result($id, $date_record, $time_in, $time_out, $task_completed, $grand_total, $created_at, $user_id, $username, $email);
+                $id = $date_record = $time_in = $time_out = $task_completed = $grand_total = $last_updated_at = $user_id = $username = $email = null;
+                $stmt->bind_result($id, $date_record, $time_in, $time_out, $task_completed, $grand_total, $last_updated_at, $user_id, $username, $email);
                 while ($stmt->fetch()) {
                     $rows[] = [
                         'id' => $id,
@@ -120,7 +161,7 @@ if ($stmt === false) {
                         'time_out' => $time_out,
                         'task_completed' => $task_completed,
                         'grand_total' => $grand_total,
-                        'created_at' => $created_at,
+                        'last_updated_at' => $last_updated_at,
                         'user_id' => $user_id,
                         'username' => $username,
                         'email' => $email,
@@ -267,11 +308,14 @@ $stats = $stats_result->fetch_assoc();
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid #f0f0f0;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         
         .card-header h2 {
             font-size: 20px;
             color: #333;
+            margin: 0;
         }
         
         .filters {
@@ -412,6 +456,53 @@ $stats = $stats_result->fetch_assoc();
             white-space: nowrap;
         }
         
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .pagination-btn {
+            padding: 6px 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: white;
+            color: #666;
+            text-decoration: none;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            min-width: 35px;
+            text-align: center;
+        }
+        
+        .pagination-btn:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .pagination-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .pagination-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        .pagination-info {
+            color: #666;
+            font-size: 12px;
+            margin-left: 10px;
+            white-space: nowrap;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 15px;
@@ -477,6 +568,7 @@ $stats = $stats_result->fetch_assoc();
                 </div>
             <?php endif; ?>
             <form method="GET" action="">
+                <input type="hidden" name="page" value="1"> <!-- Reset to page 1 when filtering -->
                 <div class="filters">
                     <div class="filter-group">
                         <label for="search">Search</label>
@@ -513,6 +605,65 @@ $stats = $stats_result->fetch_assoc();
         <div class="card">
             <div class="card-header">
                 <h2>Student Accomplishment Logs</h2>
+                
+                <!-- Pagination Controls in Header -->
+                <?php if ($total_pages > 1): ?>
+                    <div class="pagination">
+                        <?php
+                        // Build base URL with current filters
+                        $base_url = "admin_dashboard.php?";
+                        $url_params = [];
+                        if (!empty($search)) $url_params['search'] = $search;
+                        if (!empty($date_from)) $url_params['date_from'] = $date_from;
+                        if (!empty($date_to)) $url_params['date_to'] = $date_to;
+                        if (!empty($user_filter)) $url_params['user_id'] = $user_filter;
+                        $base_url .= http_build_query($url_params) . ($url_params ? '&' : '');
+                        ?>
+                        
+                        <!-- Previous button -->
+                        <a href="<?php echo $base_url; ?>page=<?php echo max(1, $page - 1); ?>" 
+                           class="pagination-btn <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                            ← Previous
+                        </a>
+                        
+                        <!-- Page numbers -->
+                        <?php
+                        $start_page = max(1, $page - 2);
+                        $end_page = min($total_pages, $page + 2);
+                        
+                        if ($start_page > 1): ?>
+                            <a href="<?php echo $base_url; ?>page=1" class="pagination-btn">1</a>
+                            <?php if ($start_page > 2): ?>
+                                <span class="pagination-btn disabled">...</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        
+                        <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                            <a href="<?php echo $base_url; ?>page=<?php echo $i; ?>" 
+                               class="pagination-btn <?php echo $i == $page ? 'active' : ''; ?>">
+                                <?php echo $i; ?>
+                            </a>
+                        <?php endfor; ?>
+                        
+                        <?php if ($end_page < $total_pages): ?>
+                            <?php if ($end_page < $total_pages - 1): ?>
+                                <span class="pagination-btn disabled">...</span>
+                            <?php endif; ?>
+                            <a href="<?php echo $base_url; ?>page=<?php echo $total_pages; ?>" class="pagination-btn"><?php echo $total_pages; ?></a>
+                        <?php endif; ?>
+                        
+                        <!-- Next button -->
+                        <a href="<?php echo $base_url; ?>page=<?php echo min($total_pages, $page + 1); ?>" 
+                           class="pagination-btn <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+                            Next →
+                        </a>
+                        
+                        <div class="pagination-info">
+                            <?php echo ($offset + 1); ?>-<?php echo min($offset + $records_per_page, $total_records); ?> 
+                            of <?php echo number_format($total_records); ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
             <div class="table-container">
                 <?php if ($result && $result->num_rows > 0): ?>
@@ -551,7 +702,7 @@ $stats = $stats_result->fetch_assoc();
                                             <?php echo htmlspecialchars($row['task_completed'] ?? 'No task recorded'); ?>
                                         </div>
                                     </td>
-                                    <td><?php echo date('M d, Y g:i A', strtotime($row['created_at'])); ?></td>
+                                    <td><?php echo date('M d, Y g:i A', strtotime($row['last_updated_at'])); ?></td>
                                 </tr>
                             <?php endwhile; ?>
                         </tbody>

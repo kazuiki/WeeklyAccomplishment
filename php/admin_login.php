@@ -9,9 +9,9 @@ if (isset($_SESSION["admin_loggedin"]) && $_SESSION["admin_loggedin"] === true) 
 
 $error = "";
 
-// Simple hardcoded admin credentials (no database needed)
+
 $ADMIN_USERNAME = "admin";
-$ADMIN_PASSWORD = "admin123"; // Change this to a secure password
+$ADMIN_PASSWORD = "admin"; 
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $username = trim($_POST["username"] ?? "");
