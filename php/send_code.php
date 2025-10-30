@@ -1,6 +1,7 @@
 <?php
 session_start();
 require __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/db.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -16,49 +17,35 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['ajax']) || $_POST['a
     respond(false, 'Invalid request');
 }
 
-$username = isset($_POST['username']) ? trim($_POST['username']) : '';
-$email    = isset($_POST['email']) ? trim($_POST['email']) : '';
+$email = isset($_POST['email']) ? trim($_POST['email']) : '';
 
-if ($username === '' || $email === '') {
-    respond(false, 'Username and email required');
+if ($email === '') {
+    respond(false, 'Email address is required');
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     respond(false, 'Invalid email format');
 }
 
-// DB connection
-$mysqli = new mysqli("localhost", "root", "", "weeklyreport");
-if ($mysqli->connect_error) {
-    respond(false, 'Database connection failed');
-}
-
-// verify user exists and email matches
-$stmt = $mysqli->prepare("SELECT user_id, email FROM users WHERE username = ?");
+// verify email exists in the system
+$stmt = $conn->prepare("SELECT user_id, username FROM users WHERE email = ?");
 if (!$stmt) respond(false, 'Database error');
-$stmt->bind_param('s', $username);
+$stmt->bind_param('s', $email);
 $stmt->execute();
 $stmt->store_result();
 
 if ($stmt->num_rows === 0) {
     $stmt->close();
-    $mysqli->close();
-    respond(false, 'Username not found');
+    respond(false, 'Email address not found in our system');
 }
 
-$stmt->bind_result($user_id, $db_email);
+$stmt->bind_result($user_id, $username);
 $stmt->fetch();
 $stmt->close();
-
-if ($email !== $db_email) {
-    $mysqli->close();
-    respond(false, 'Email does not match our records');
-}
 
 // Rate limiting check
 if (!isset($_SESSION['last_code_time'])) $_SESSION['last_code_time'] = 0;
 if (time() - $_SESSION['last_code_time'] < 20) {
-    $mysqli->close();
     respond(false, 'Please wait before requesting another code');
 }
 
@@ -95,11 +82,9 @@ try {
     $mail->AltBody = "Hello {$username},\n\nYour verification code is: {$code}\nValid for 3 minutes.";
 
     $mail->send();
-    $mysqli->close();
     respond(true, "Verification code sent to {$email}");
     
 } catch (Exception $e) {
     unset($_SESSION['verification_code'], $_SESSION['verification_expiry']);
-    $mysqli->close();
     respond(false, 'Failed to send verification code. Please try again.');
 }

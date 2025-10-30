@@ -1930,15 +1930,15 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 // Update time inputs - both hidden (24h) and display (12h) inputs
                 const timeInValue = data.data.time_in || '';
                 const timeOutValue = data.data.time_out || '';
-                
+               
                 document.getElementById("time-in").value = timeInValue;
                 document.getElementById("time-out").value = timeOutValue;
                 document.getElementById("task").value = data.data.task_completed || '';
-                
+               
                 // Update display inputs with 12-hour format
                 const timeInDisplay = document.getElementById("time-in-display");
                 const timeOutDisplay = document.getElementById("time-out-display");
-                
+               
                 if (timeInDisplay && timeInValue) {
                     timeInDisplay.value = convert24HourTo12Hour(timeInValue);
                 }

@@ -25,35 +25,34 @@ require_once __DIR__ . '/db.php';
 // AJAX: verify OTP code without submitting the whole form
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "verify_code") {
     header('Content-Type: application/json');
-    $change_username = isset($_POST['username']) ? $_POST['username'] : '';
     $change_email = isset($_POST['email']) ? $_POST['email'] : '';
     $verification_code = isset($_POST['code']) ? $_POST['code'] : '';
 
     $response = [ 'ok' => false, 'message' => 'Invalid request' ];
 
-    if ($change_username !== '' && $change_email !== '' && $verification_code !== '') {
-        $stmt = $conn->prepare("SELECT user_id, email FROM users WHERE username = ?");
-        $stmt->bind_param("s", $change_username);
+    if ($change_email !== '' && $verification_code !== '') {
+        $stmt = $conn->prepare("SELECT user_id, username FROM users WHERE email = ?");
+        $stmt->bind_param("s", $change_email);
         $stmt->execute();
         $stmt->store_result();
         if ($stmt->num_rows > 0) {
-            $stmt->bind_result($user_id, $db_email);
+            $stmt->bind_result($user_id, $username);
             $stmt->fetch();
-            if ($change_email !== $db_email) {
-                $response = [ 'ok' => false, 'message' => 'Email does not match our records!' ];
-            } elseif (!isset($_SESSION["verification_code"]) || !isset($_SESSION["verification_expiry"]) || time() > $_SESSION["verification_expiry"]) {
+            if (!isset($_SESSION["verification_code"]) || !isset($_SESSION["verification_expiry"]) || time() > $_SESSION["verification_expiry"]) {
                 $response = [ 'ok' => false, 'message' => 'Invalid or expired verification code!' ];
             } elseif ($verification_code != $_SESSION["verification_code"]) {
                 $response = [ 'ok' => false, 'message' => 'Invalid verification code!' ];
             } else {
+                // Store the username in session for password reset
+                $_SESSION["reset_username"] = $username;
                 $response = [ 'ok' => true, 'message' => '' ];
             }
         } else {
-            $response = [ 'ok' => false, 'message' => 'Username not found!' ];
+            $response = [ 'ok' => false, 'message' => 'Email address not found!' ];
         }
         $stmt->close();
     } else {
-        $response = [ 'ok' => false, 'message' => 'Please provide username, email and code.' ];
+        $response = [ 'ok' => false, 'message' => 'Please provide email and verification code.' ];
     }
 
     echo json_encode($response);
@@ -222,7 +221,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
         echo json_encode([ 'ok' => false, 'message' => 'Passwords do not match.' ]); exit();
     }
 
-    // Check for existing username ONLY (emails may be duplicated per requirements)
+    // Check for existing username
     $exists = $conn->prepare("SELECT user_id FROM users WHERE username = ? LIMIT 1");
     $exists->bind_param("s", $signup_username);
     $exists->execute();
@@ -231,6 +230,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
         echo json_encode([ 'ok' => false, 'message' => 'Username already exists.' ]); exit();
     }
     $exists->close();
+
+    // Check for existing email
+    $emailExists = $conn->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
+    $emailExists->bind_param("s", $signup_email);
+    $emailExists->execute();
+    $emailExists->store_result();
+    if ($emailExists->num_rows > 0) {
+        echo json_encode([ 'ok' => false, 'message' => 'Email already exists. Please use a different email address.' ]); exit();
+    }
+    $emailExists->close();
 
     $hashed_password = password_hash($signup_password, PASSWORD_DEFAULT);
     // mark new accounts with is_new = 1
@@ -252,18 +261,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
 // AJAX: change password
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "change_password") {
     header('Content-Type: application/json');
-    $change_username   = $_POST["change_username"] ?? '';
     $change_email      = $_POST["change_email"] ?? '';
     $verification_code = $_POST["verification_code"] ?? '';
     $new_password      = $_POST["new_password"] ?? '';
     $confirm_password  = $_POST["confirm_password"] ?? '';
+
+    // Get username from session (stored during verification)
+    $change_username = $_SESSION["reset_username"] ?? '';
+
+    if (!$change_username) {
+        echo json_encode([ 'ok' => false, 'message' => 'Session expired. Please verify your email again.' ]); exit();
+    }
 
     $stmt = $conn->prepare("SELECT user_id, email FROM users WHERE username = ?");
     $stmt->bind_param("s", $change_username);
     $stmt->execute();
     $stmt->store_result();
     if ($stmt->num_rows === 0) {
-        echo json_encode([ 'ok' => false, 'message' => 'Username not found!' ]); exit();
+        echo json_encode([ 'ok' => false, 'message' => 'User not found!' ]); exit();
     }
     $stmt->bind_result($user_id, $db_email);
     $stmt->fetch();
@@ -284,6 +299,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
     if ($update->execute()) {
         unset($_SESSION["verification_code"]);
         unset($_SESSION["verification_expiry"]);
+        unset($_SESSION["reset_username"]);
         echo json_encode([ 'ok' => true, 'message' => 'Password successfully changed!' ]);
     } else {
         echo json_encode([ 'ok' => false, 'message' => 'Error updating password: ' . $update->error ]);
@@ -419,70 +435,100 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($signup_password !== $signup_confirm_password) {
             $error = "Passwords do not match.";
         } else {
-            $hashed_password = password_hash($signup_password, PASSWORD_DEFAULT);
-
-            // mark new accounts with is_new = 1
-            $stmt = $conn->prepare("INSERT INTO users (username, password, email, is_new) VALUES (?, ?, ?, 1)");
-            $stmt->bind_param("sss", $signup_username, $hashed_password, $signup_email);
-            if ($stmt->execute()) {
-                $success = "Signup successful!";
-                $old = array_fill_keys(array_keys($old), '');
+            // Check for existing username
+            $exists = $conn->prepare("SELECT user_id FROM users WHERE username = ? LIMIT 1");
+            $exists->bind_param("s", $signup_username);
+            $exists->execute();
+            $exists->store_result();
+            if ($exists->num_rows > 0) {
+                $error = "Username already exists.";
+                $exists->close();
             } else {
-                $error = "Error creating user: " . $stmt->error;
+                $exists->close();
+                
+                // Check for existing email
+                $emailExists = $conn->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
+                $emailExists->bind_param("s", $signup_email);
+                $emailExists->execute();
+                $emailExists->store_result();
+                if ($emailExists->num_rows > 0) {
+                    $error = "Email already exists. Please use a different email address.";
+                    $emailExists->close();
+                } else {
+                    $emailExists->close();
+                    
+                    $hashed_password = password_hash($signup_password, PASSWORD_DEFAULT);
+
+                    // mark new accounts with is_new = 1
+                    $stmt = $conn->prepare("INSERT INTO users (username, password, email, is_new) VALUES (?, ?, ?, 1)");
+                    $stmt->bind_param("sss", $signup_username, $hashed_password, $signup_email);
+                    if ($stmt->execute()) {
+                        $success = "Signup successful!";
+                        $old = array_fill_keys(array_keys($old), '');
+                    } else {
+                        $error = "Error creating user: " . $stmt->error;
+                    }
+                }
             }
         }
     }
     // CHANGE PASSWORD
-    elseif (isset($_POST["change_username"])) {
-        $change_username = $_POST["change_username"];
+    elseif (isset($_POST["change_email"])) {
         $change_email    = $_POST["change_email"];
         $verification_code = $_POST["verification_code"];
         $new_password    = $_POST["new_password"];
         $confirm_password = $_POST["confirm_password"];
 
-        $old['username'] = $change_username;
         $old['change_email'] = $change_email;
 
-        $stmt = $conn->prepare("SELECT user_id, email FROM users WHERE username = ?");
-        $stmt->bind_param("s", $change_username);
-        $stmt->execute();
-        $stmt->store_result();
+        // Get username from session (stored during verification)
+        $change_username = $_SESSION["reset_username"] ?? '';
 
-        if ($stmt->num_rows > 0) {
-            $stmt->bind_result($user_id, $db_email);
-            $stmt->fetch();
-
-            if ($change_email !== $db_email) {
-                $changePasswordError = "Email does not match our records!";
-            } elseif (
-                !isset($_SESSION["verification_code"]) ||
-                !isset($_SESSION["verification_expiry"]) ||
-                time() > $_SESSION["verification_expiry"] ||
-                $verification_code != $_SESSION["verification_code"]
-            ) {
-                $changePasswordError = "Invalid or expired verification code!";
-            } elseif ($new_password !== $confirm_password) {
-                $changePasswordError = "Passwords do not match!";
-            } else {
-                $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
-
-                $update = $conn->prepare("UPDATE users SET password = ?, is_locked = 0 WHERE user_id = ?");
-                $update->bind_param("si", $hashed_new_password, $user_id);
-                if ($update->execute()) {
-                    $success = "Password successfully changed!.";
-                    unset($_SESSION["verification_code"]);
-                    unset($_SESSION["verification_expiry"]);
-                    $old['change_email'] = '';
-                } else {
-                    $changePasswordError = "Error updating password: " . $update->error;
-                }
-                $update->close();
-            }
+        if (!$change_username) {
+            $changePasswordError = "Session expired. Please verify your email again.";
         } else {
-            $changePasswordError = "Username not found!";
-        }
+            $stmt = $conn->prepare("SELECT user_id, email FROM users WHERE username = ?");
+            $stmt->bind_param("s", $change_username);
+            $stmt->execute();
+            $stmt->store_result();
 
-        $stmt->close();
+            if ($stmt->num_rows > 0) {
+                $stmt->bind_result($user_id, $db_email);
+                $stmt->fetch();
+
+                if ($change_email !== $db_email) {
+                    $changePasswordError = "Email does not match our records!";
+                } elseif (
+                    !isset($_SESSION["verification_code"]) ||
+                    !isset($_SESSION["verification_expiry"]) ||
+                    time() > $_SESSION["verification_expiry"] ||
+                    $verification_code != $_SESSION["verification_code"]
+                ) {
+                    $changePasswordError = "Invalid or expired verification code!";
+                } elseif ($new_password !== $confirm_password) {
+                    $changePasswordError = "Passwords do not match!";
+                } else {
+                    $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
+
+                    $update = $conn->prepare("UPDATE users SET password = ?, is_locked = 0 WHERE user_id = ?");
+                    $update->bind_param("si", $hashed_new_password, $user_id);
+                    if ($update->execute()) {
+                        $success = "Password successfully changed!.";
+                        unset($_SESSION["verification_code"]);
+                        unset($_SESSION["verification_expiry"]);
+                        unset($_SESSION["reset_username"]);
+                        $old['change_email'] = '';
+                    } else {
+                        $changePasswordError = "Error updating password: " . $update->error;
+                    }
+                    $update->close();
+                }
+            } else {
+                $changePasswordError = "User not found!";
+            }
+
+            $stmt->close();
+        }
     }
 }
 
@@ -659,7 +705,6 @@ $conn->close();
         <p class="modal-sub">Enter your email to get OTP.</p>
         <br>
         <form id="changePasswordForm" method="POST" action="Login.php">
-            <input type="hidden" id="change-username" name="change_username" value="<?= htmlspecialchars($old['username']) ?>">
             <div class="input-group inline-action float">
                 <div class="flex-1">
                     <input type="email" id="change-email" name="change_email" placeholder=" " required value="<?= htmlspecialchars($old['change_email']) ?>">
@@ -809,11 +854,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sendCodeBtn) {
         sendCodeBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            const username = document.getElementById('change-username').value;
             const email = document.getElementById('change-email').value;
             
-            if (!username || !email) {
-                showFloatingNotification('Please enter both username and email', 'error');
+            if (!email) {
+                showFloatingNotification('Please enter your email address', 'error');
                 return;
             }
 
@@ -825,7 +869,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Send request to server
             const data = new URLSearchParams();
             data.append('ajax', 'send_code');
-            data.append('username', username);
             data.append('email', email);
 
             fetch('send_code.php', {
@@ -986,12 +1029,6 @@ function openChangePasswordModal() {
     const np = document.getElementById('newPasswordFields');
     if (np) np.style.display = 'block';
     
-    const usernameField = document.getElementById('username');
-    const changeUsername = document.getElementById('change-username');
-    if (changeUsername && usernameField) {
-        changeUsername.value = usernameField.value || '';
-    }
-    
     const newPasswordField = document.getElementById('new-password');
     const confirmPasswordField = document.getElementById('confirm-password');
     if (newPasswordField) newPasswordField.disabled = true;
@@ -1049,17 +1086,15 @@ document.addEventListener('DOMContentLoaded', function() {
             // debounce
             if (vTimer) clearTimeout(vTimer);
             vTimer = setTimeout(() => {
-                const username = document.getElementById('change-username').value;
                 const email = document.getElementById('change-email').value;
                 const code = vcodeInput.value.trim();
-                if (!username || !email || !code) {
+                if (!email || !code) {
                     vcodeStatus && (vcodeStatus.textContent = '');
                     setRecoveryEnabled(false);
                     return;
                 }
                 const params = new URLSearchParams();
                 params.append('ajax', 'verify_code');
-                params.append('username', username);
                 params.append('email', email);
                 params.append('code', code);
                 fetch('Login.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
