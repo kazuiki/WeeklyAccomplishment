@@ -3,7 +3,7 @@ session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION["admin_loggedin"]) || $_SESSION["admin_loggedin"] !== true) {
-    header("Location: admin_login.php");
+    header("Location: Login.php");
     exit();
 }
 
@@ -13,7 +13,7 @@ date_default_timezone_set('Asia/Manila');
 // Handle logout
 if (isset($_GET['logout'])) {
     session_destroy();
-    header("Location: admin_login.php");
+    header("Location: Login.php");
     exit();
 }
 

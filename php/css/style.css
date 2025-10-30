@@ -202,8 +202,11 @@ body::before {
   box-sizing: border-box;
 }
 
-.btn.primary { background: #4b5bfd; box-shadow: 0 6px 18px rgba(75, 91, 253, 0.35); border-radius: 10px; }
+.btn.primary { background: #4b5bfd; box-shadow: 0 6px 18px rgba(75, 91, 253, 0.35); border-radius: 10px;}
 .btn.primary:hover { background: #3f4ee6; transform: translateY(-1px); }
+
+.btn.outline { background: transparent; border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 10px; color: #ffffff; box-shadow: none; }
+.btn.outline:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.9); transform: translateY(-1px); }
 
 /* Signup link - Fixed sizing */
 .signup-link {
