@@ -6,9 +6,20 @@ if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true) {
     exit();
 }
 
+// Redirect if already logged in as admin
+if (isset($_SESSION["admin_loggedin"]) && $_SESSION["admin_loggedin"] === true) {
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
 $error = "";
 $success = "";
 $changePasswordError = "";
+$adminError = "";
+
+// Admin credentials
+$ADMIN_USERNAME = "admin";
+$ADMIN_PASSWORD = "admin";
 
 // Store old values to retain in case of errors
 $old = [
@@ -21,6 +32,26 @@ $old = [
 
 // Use centralized DB connection
 require_once __DIR__ . '/db.php';
+
+// AJAX: Admin login
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "admin_login") {
+    header('Content-Type: application/json');
+    $username = trim($_POST["username"] ?? "");
+    $password = $_POST["password"] ?? "";
+    
+    $response = [ 'ok' => false, 'message' => 'Invalid request' ];
+    
+    if ($username === $ADMIN_USERNAME && $password === $ADMIN_PASSWORD) {
+        $_SESSION["admin_loggedin"] = true;
+        $_SESSION["admin_username"] = $username;
+        $response = [ 'ok' => true, 'message' => 'Admin login successful' ];
+    } else {
+        $response = [ 'ok' => false, 'message' => 'Invalid admin credentials!' ];
+    }
+    
+    echo json_encode($response);
+    exit();
+}
 
 // AJAX: verify OTP code without submitting the whole form
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "verify_code") {
@@ -495,6 +526,7 @@ $conn->close();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Login Page</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="css/style.css">
 <style>
 /* Inline field validation messages: small, left-aligned, red */
@@ -524,6 +556,56 @@ $conn->close();
     0%, 49% { opacity: 1; }
     50%, 100% { opacity: 0; }
 }
+
+/* Smooth transition for auth-card content */
+.auth-card-content {
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.auth-card-content.fade-out {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+.auth-card-content.fade-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Admin icon styles */
+.admin-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+    display: inline-block;
+    animation: lockBounce 0.6s ease;
+}
+
+@keyframes lockBounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* Admin Login View Specific Styles */
+#adminLoginView {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-height: 50vh;
+}
+
+#adminLoginView .auth-head h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+#adminLoginView .auth-head p {
+    font-size: 12px;
+    opacity: 0.85;
+    color: #ffffff;
+}
 </style>
 </head>
 <body>
@@ -542,39 +624,67 @@ $conn->close();
 
     <section class="auth-panel">
         <div class="auth-card">
-            <div class="auth-head">
-                <h2>Welcome Back</h2>
-                <p>Login to your account to proceed.</p>
-                <br>
+            <!-- Student Login View -->
+            <div id="studentLoginView" class="auth-card-content fade-in">
+                <div class="auth-head">
+                    <h2>Welcome Back</h2>
+                    <p>Login to your account to proceed.</p>
+                    <br>
+                </div>
+                <form method="POST" action="Login.php" id="loginForm">
+                    <div class="input-group float">
+                        <input type="text" id="username" name="username" placeholder=" " required value="<?= htmlspecialchars($old['username']) ?>">
+                        <label for="username">Username</label>
+                    </div>
+                    <div class="input-group float">
+                        <input type="password" id="password" name="password" placeholder=" " required>
+                        <label for="password">Password</label>
+                    </div>
+                    <div class="form-row-small">
+                        <a class="link forgot" href="javascript:void(0)" onclick="openChangePasswordModal()">Forgot password</a>
+                    </div>
+                    <?php if (!empty($error)) { ?>
+                        <p class="form-msg error"><?= $error ?></p>
+                    <?php } ?>
+                    <?php if (!empty($success)) { ?>
+                        <p class="form-msg success"><?= $success ?></p>
+                    <?php } ?>
+                    <button type="submit" class="btn primary" id="loginBtn">Login</button>
+                    <button type="button" class="btn outline" onclick="switchToAdminLogin()" style="margin-top:12px;">Admin</button>
+                    <div class="signup-link" style="margin-top:12px;">
+                        <span>No Account?</span>
+                        <a href="javascript:void(0)" onclick="openSignupModal()">Sign up here</a>
+                    </div>
+                </form>
             </div>
-            <form method="POST" action="Login.php" id="loginForm">
-                <div class="input-group float">
-                    <input type="text" id="username" name="username" placeholder=" " required value="<?= htmlspecialchars($old['username']) ?>">
-                    <label for="username">Username</label>
+
+            <!-- Admin Login View -->
+            <div id="adminLoginView" class="auth-card-content fade-out" style="display: none; margin-left: -90px; padding-left: 105px; margin-top: -15px;">
+                <div style="display: flex; flex-direction: column; width: 100%; align-items: center;">
+                    <div class="auth-head" style="text-align: center; width: 100%; display: flex; flex-direction: column; align-items: center; margin-bottom: 50px; padding-top: 0;">
+                        <div class="admin-icon">🔐</div>
+                        <h2 style="margin: 0;">Admin Portal</h2>
+                        <p style="margin-top: 8px;">OJT Activity Log System</p>
+                    </div>
+                    <form id="adminLoginForm" style="width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center;">
+                        <div class="input-group float" style="width: 100%; max-width: 350px; margin-bottom: 20px;">
+                            <input type="text" id="admin-username" name="admin_username" placeholder=" " required>
+                            <label for="admin-username">Username</label>
+                        </div>
+                        <div class="input-group float" style="width: 100%; max-width: 350px; margin-bottom: 20px;">
+                            <input type="password" id="admin-password" name="admin_password" placeholder=" " required>
+                            <label for="admin-password">Password</label>
+                        </div>
+                        <p class="form-msg error" id="adminErrorMsg" style="display: none; max-width: 350px; width: 100%; text-align: center; margin-bottom: 10px;"></p>
+                        <button type="submit" class="btn primary" id="adminLoginBtn" style="width: 100%; max-width: 350px; margin-bottom: 5px;">Login as Admin</button>
+                        <div style="text-align: center; width: 100%;">
+                            <a href="javascript:void(0)" onclick="switchToStudentLogin()" style="color: #9db2ff; text-decoration: none; font-size: 14px;">
+                                ← Back to Student Login
+                            </a>
+                        </div>
+                    </form>
                 </div>
-                <div class="input-group float">
-                    <input type="password" id="password" name="password" placeholder=" " required>
-                    <label for="password">Password</label>
-                </div>
-                <div class="form-row-small">
-                    <a class="link forgot" href="javascript:void(0)" onclick="openChangePasswordModal()">Forgot password</a>
-                </div>
-                <?php if (!empty($error)) { ?>
-                    <p class="form-msg error"><?= $error ?></p>
-                <?php } ?>
-                <?php if (!empty($success)) { ?>
-                    <p class="form-msg success"><?= $success ?></p>
-                <?php } ?>
-                <button type="submit" class="btn primary" id="loginBtn">Login</button>
-                <div class="signup-link" style="margin-top:12px;">
-                    <span>No Account?</span>
-                    <a href="javascript:void(0)" onclick="openSignupModal()">Sign up here</a>
-                </div>
-                <div class="signup-link" style="margin-top:8px; padding-top:8px; border-top:1px solid #e0e0e0;">
-                    <span style="font-size:13px; color:#999;">Admin?</span>
-                    <a href="admin_login.php" style="font-size:13px;">Login here</a>
-                </div>
-            </form>
+            </div>
         </div>
     </section>
 </div>
@@ -747,6 +857,87 @@ function showFloatingNotification(message, type = 'error') {
         setTimeout(() => n.remove(), 300);
     }, 3000);
 }
+
+// Smooth transition between student and admin login
+function switchToAdminLogin() {
+    const studentView = document.getElementById('studentLoginView');
+    const adminView = document.getElementById('adminLoginView');
+    
+    // Fade out student view
+    studentView.classList.remove('fade-in');
+    studentView.classList.add('fade-out');
+    
+    setTimeout(() => {
+        studentView.style.display = 'none';
+        adminView.style.display = 'block';
+        
+        // Fade in admin view
+        setTimeout(() => {
+            adminView.classList.remove('fade-out');
+            adminView.classList.add('fade-in');
+        }, 50);
+    }, 300);
+}
+
+function switchToStudentLogin() {
+    const studentView = document.getElementById('studentLoginView');
+    const adminView = document.getElementById('adminLoginView');
+    
+    // Fade out admin view
+    adminView.classList.remove('fade-in');
+    adminView.classList.add('fade-out');
+    
+    setTimeout(() => {
+        adminView.style.display = 'none';
+        studentView.style.display = 'block';
+        
+        // Fade in student view
+        setTimeout(() => {
+            studentView.classList.remove('fade-out');
+            studentView.classList.add('fade-in');
+        }, 50);
+    }, 300);
+}
+
+// Admin Login Form Handler
+document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = document.getElementById('adminLoginBtn');
+    var errorMsg = document.getElementById('adminErrorMsg');
+    btn.disabled = true;
+    btn.textContent = 'Signing in...';
+    errorMsg.style.display = 'none';
+
+    var form = new URLSearchParams();
+    form.append('ajax', 'admin_login');
+    form.append('username', document.getElementById('admin-username').value);
+    form.append('password', document.getElementById('admin-password').value);
+
+    fetch('Login.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString()
+    })
+    .then(r => r.json())
+    .then(json => {
+        if (json.ok) {
+            window.location.href = 'admin_dashboard.php';
+        } else {
+            errorMsg.textContent = json.message || 'Invalid admin credentials!';
+            errorMsg.style.display = 'block';
+            // Clear password field
+            document.getElementById('admin-password').value = '';
+        }
+    })
+    .catch(() => {
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.style.display = 'block';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Login as Admin';
+    });
+});
 
 // Smooth AJAX Login (prevents full page refresh)
 document.getElementById('loginForm').addEventListener('submit', function(e) {
