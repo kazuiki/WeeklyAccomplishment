@@ -67,7 +67,7 @@ $result = $conn->query($query);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All Students - Admin Panel</title>
+    <title>Admin</title>
     <style>
         * {
             margin: 0;
