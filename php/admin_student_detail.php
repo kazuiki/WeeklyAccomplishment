@@ -19,8 +19,14 @@ if (!$user_id) {
 }
 
 // Get user information
-$user_query = "SELECT user_id, username, email, created_at FROM users WHERE user_id = ?";
+$user_query = "SELECT u.user_id, u.username, u.email, u.created_at, si.profile_picture, si.profile_picture_type 
+               FROM users u 
+               LEFT JOIN student_info si ON u.user_id = si.users_user_id 
+               WHERE u.user_id = ?";
 $stmt = $conn->prepare($user_query);
+if (!$stmt) {
+    die("Error preparing user query: " . $conn->error);
+}
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user_result = $stmt->get_result();
@@ -41,6 +47,9 @@ $stats_query = "SELECT
                 FROM weekly_accomplishments
                 WHERE users_user_id = ?";
 $stmt = $conn->prepare($stats_query);
+if (!$stmt) {
+    die("Error preparing stats query: " . $conn->error);
+}
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $stats = $stmt->get_result()->fetch_assoc();
@@ -53,11 +62,14 @@ $logs_query = "SELECT
                 time_out,
                 task_completed,
                 grand_total,
-                created_at
+                last_updated_at
                FROM weekly_accomplishments
                WHERE users_user_id = ?
-               ORDER BY date_record DESC, created_at DESC";
+               ORDER BY date_record DESC, last_updated_at DESC";
 $stmt = $conn->prepare($logs_query);
+if (!$stmt) {
+    die("Error preparing logs query: " . $conn->error);
+}
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $logs_result = $stmt->get_result();
@@ -74,6 +86,9 @@ $weekly_query = "SELECT
                  ORDER BY year DESC, week DESC
                  LIMIT 10";
 $stmt = $conn->prepare($weekly_query);
+if (!$stmt) {
+    die("Error preparing weekly query: " . $conn->error);
+}
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $weekly_result = $stmt->get_result();
@@ -287,12 +302,17 @@ $weekly_result = $stmt->get_result();
         <div class="user-header">
             <div class="user-info">
                 <div class="user-avatar">
-                    <?php echo strtoupper(substr($user['username'], 0, 1)); ?>
+                    <?php if ($user['profile_picture'] && $user['profile_picture_type']): ?>
+                        <img src="data:<?php echo htmlspecialchars($user['profile_picture_type']); ?>;base64,<?php echo base64_encode($user['profile_picture']); ?>" 
+                             alt="<?php echo htmlspecialchars($user['username']); ?>" 
+                             style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                    <?php else: ?>
+                        <?php echo strtoupper(substr($user['username'], 0, 1)); ?>
+                    <?php endif; ?>
                 </div>
                 <div class="user-details">
                     <h2><?php echo htmlspecialchars($user['username']); ?></h2>
                     <p><?php echo htmlspecialchars($user['email']); ?></p>
-                    <p>Member since: <?php echo date('F d, Y', strtotime($user['created_at'])); ?></p>
                 </div>
             </div>
         </div>
@@ -377,7 +397,7 @@ $weekly_result = $stmt->get_result();
                                 <td><?php echo htmlspecialchars($log['time_out'] ?? 'N/A'); ?></td>
                                 <td><span class="badge"><?php echo number_format($log['grand_total'] ?? 0, 2); ?> hrs</span></td>
                                 <td class="task-cell"><?php echo htmlspecialchars($log['task_completed'] ?? 'No task recorded'); ?></td>
-                                <td><?php echo date('M d, Y g:i A', strtotime($log['created_at'])); ?></td>
+                                <td><?php echo date('M d, Y g:i A', strtotime($log['last_updated_at'])); ?></td>
                             </tr>
                         <?php endwhile; ?>
                     </tbody>

@@ -15,7 +15,7 @@ Ang admin panel ay ginawa para sa administrators na makapag-view ng lahat ng log
 - Walang database needed para sa admin accounts
 - Default credentials:
   - **Username:** `admin`
-  - **Password:** `admin123`
+  - **Password:** `admin`
 
 **Important:** Palitan ang password sa `admin_login.php` file para sa security!
 

@@ -16,7 +16,7 @@ Navigate directly to: `http://your-domain/php/admin_login.php`
 
 ```
 Username: admin
-Password: admin123
+Password: admin
 ```
 
 **⚠️ IMPORTANT: Change the password in admin_login.php for security!**
