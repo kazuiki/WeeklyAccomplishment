@@ -468,6 +468,43 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
         echo json_encode($response);
         exit();
     }
+
+    // AJAX: verify AFK password
+    if ($_POST["ajax"] === "verify_afk_password") {
+        $password = $_POST["password"] ?? '';
+        $user_id = $_SESSION["user_id"];
+       
+        if (empty($password)) {
+            $response["status"] = "error";
+            $response["message"] = "Password is required";
+        } else {
+            // Get user's password from database
+            $stmt = $conn->prepare("SELECT password FROM users WHERE user_id = ?");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $stmt->store_result();
+           
+            if ($stmt->num_rows > 0) {
+                $stmt->bind_result($db_password);
+                $stmt->fetch();
+               
+                if (password_verify($password, $db_password)) {
+                    $response["status"] = "success";
+                    $response["message"] = "Session resumed successfully";
+                } else {
+                    $response["status"] = "error";
+                    $response["message"] = "Invalid password";
+                }
+            } else {
+                $response["status"] = "error";
+                $response["message"] = "User not found";
+            }
+            $stmt->close();
+        }
+       
+        echo json_encode($response);
+        exit();
+    }
 }
 
 // ---------- PROFILE UPDATE (multipart POST) ----------
@@ -761,7 +798,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     </div>
     <div class="overlay" id="sidebarOverlay" style="display:none;"></div>
 
-    
+   
 
         <!-- Scheduling Modal (empty content for now) -->
         <div class="modal" id="scheduleModal">
@@ -875,7 +912,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                             </button>
                         </div>
                         <div class="profile-info">
-                            <h3 class="user-name"><?php 
+                            <h3 class="user-name"><?php
                                 $fullName = trim(($user_profile['student_fn'] ?? '') . ' ' . ($user_profile['student_mi'] ?? '') . ' ' . ($user_profile['student_ln'] ?? ''));
                                 echo htmlspecialchars($fullName ?: ($username ?? 'User'));
                             ?></h3>
@@ -923,10 +960,21 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     <!-- AFK Modal -->
 <div class="modal" id="afkModal">
     <div class="modal-content logout-modal">
-        <h2 class="logout-title">Are you still there?</h2>
-        <p style="text-align: center; margin: 15px 0; color: #666;">You've been inactive for a while.</p>
+        <h2 class="logout-title">Session Timeout</h2>
+        <p style="text-align: center; margin: 15px 0; color: #666;">You've been inactive for a while. Please enter your password to continue.</p>
+       
+        <div class="form-group" style="margin: 20px 0;">
+            <label for="afkPassword" style="display: block; margin-bottom: 8px; font-weight: 500;">Password:</label>
+            <input type="password" id="afkPassword" placeholder="Enter your password"
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+            <div id="afkPasswordError" style="color: #e74c3c; font-size: 12px; margin-top: 5px; display: none;"></div>
+        </div>
+       
+        <div style="text-align: center; margin: 10px 0; color: #666; font-size: 14px;">
+            <span id="afkCountdown">Time remaining: 30s</span>
+        </div>
+       
         <div class="modal-buttons logout-confirm">
-            <button class="btn confirm-filled" onclick="goBackToLogin()">Go back to Login</button>
         </div>
     </div>
 </div>
@@ -1138,7 +1186,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             if (element) {
                 element.style.opacity = '0';
                 element.style.animation = 'none';
-                
+               
                 setTimeout(() => {
                     element.style.animation = `${animation} 0.4s ease-out forwards`;
                 }, delay);
@@ -1150,7 +1198,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         menuItems.forEach((item, index) => {
             item.style.opacity = '0';
             item.style.transform = 'translateX(-20px)';
-            
+           
             setTimeout(() => {
                 item.style.transition = 'all 0.3s ease';
                 item.style.opacity = '1';
@@ -1168,7 +1216,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 this.style.boxShadow = '6px 0 40px rgba(44, 94, 143, 0.4)';
                 this.style.transform = 'translateX(2px)';
             });
-            
+           
             sidebar.addEventListener('mouseleave', function() {
                 this.style.boxShadow = '';
                 this.style.transform = 'translateX(0)';
@@ -1179,8 +1227,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const buttons = document.querySelectorAll('button, .btn');
         buttons.forEach(button => {
             // Skip modal buttons to prevent position changes
-            if (button.closest('#userProfileModal') || 
-                button.classList.contains('close-button') || 
+            if (button.closest('#userProfileModal') ||
+                button.classList.contains('close-button') ||
                 button.classList.contains('profile-edit-overlay') ||
                 button.id === 'printableViewBtn') {
                 return;
@@ -1193,7 +1241,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 const size = Math.max(rect.width, rect.height);
                 const x = e.clientX - rect.left - size / 2;
                 const y = e.clientY - rect.top - size / 2;
-                
+               
                 ripple.style.cssText = `
                     position: absolute;
                     width: ${size}px;
@@ -1207,11 +1255,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     pointer-events: none;
                     z-index: 1;
                 `;
-                
+               
                 this.style.position = 'relative';
                 this.style.overflow = 'hidden';
                 this.appendChild(ripple);
-                
+               
                 setTimeout(() => ripple.remove(), 300);
             });
 
@@ -1220,7 +1268,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 this.style.transform = 'translateY(-2px)';
                 this.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.2)';
             });
-            
+           
             button.addEventListener('mouseleave', function() {
                 this.style.transform = 'translateY(0)';
                 this.style.boxShadow = '';
@@ -1234,7 +1282,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 this.style.transform = 'scale(1.02)';
                 this.style.boxShadow = '0 0 20px rgba(90, 155, 213, 0.3)';
                 this.style.borderColor = 'var(--primary-main)';
-                
+               
                 // Add floating label animation if needed
                 const label = this.previousElementSibling;
                 if (label && label.tagName === 'LABEL') {
@@ -1242,19 +1290,19 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     label.style.transform = 'translateY(-2px)';
                 }
             });
-            
+           
             input.addEventListener('blur', function() {
                 this.style.transform = 'scale(1)';
                 this.style.boxShadow = '';
                 this.style.borderColor = '';
-                
+               
                 const label = this.previousElementSibling;
                 if (label && label.tagName === 'LABEL') {
                     label.style.color = '';
                     label.style.transform = 'translateY(0)';
                 }
             });
-            
+           
             // Add typing animation
             input.addEventListener('input', function() {
                 this.style.animation = 'inputGlow 0.3s ease';
@@ -1286,21 +1334,21 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function showModalWithAnimation(modalId) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
-        
+       
         modal.style.display = 'flex';
         modal.style.opacity = '0';
         modal.style.backdropFilter = 'blur(0px)';
-        
+       
         requestAnimationFrame(() => {
             modal.style.transition = 'all 0.15s ease';
             modal.style.opacity = '1';
             modal.style.backdropFilter = 'blur(8px)';
-            
+           
             const modalContent = modal.querySelector('.modal-content');
             if (modalContent) {
                 modalContent.style.transform = 'scale(0.8) translateY(-30px)';
                 modalContent.style.opacity = '0';
-                
+               
                 setTimeout(() => {
                     modalContent.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
                     modalContent.style.transform = 'scale(1) translateY(0)';
@@ -1313,18 +1361,18 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function hideModalWithAnimation(modalId) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
-        
+       
         const modalContent = modal.querySelector('.modal-content');
         if (modalContent) {
             modalContent.style.transition = 'all 0.15s ease';
             modalContent.style.transform = 'scale(0.8) translateY(-20px)';
             modalContent.style.opacity = '0';
         }
-        
+       
         modal.style.transition = 'all 0.15s ease';
         modal.style.opacity = '0';
         modal.style.backdropFilter = 'blur(0px)';
-        
+       
         setTimeout(() => {
             modal.style.display = 'none';
         }, 200);
@@ -1339,51 +1387,51 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 opacity: 0;
             }
         }
-        
+       
         @keyframes inputGlow {
-            0%, 100% { 
-                box-shadow: 0 0 5px rgba(90, 155, 213, 0.3); 
+            0%, 100% {
+                box-shadow: 0 0 5px rgba(90, 155, 213, 0.3);
             }
-            50% { 
-                box-shadow: 0 0 20px rgba(90, 155, 213, 0.6); 
+            50% {
+                box-shadow: 0 0 20px rgba(90, 155, 213, 0.6);
             }
         }
-        
+       
         .animate-on-hover:hover {
             transform: translateY(-1px);
             transition: transform 0.1s ease;
         }
-        
+       
         .pulse-on-click {
             transform: scale(0.98);
             transition: transform 0.1s ease;
         }
-        
+       
         @keyframes buttonPress {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(0.95); }
         }
-        
+       
         .loading-shimmer {
             background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
             background-size: 200% 100%;
             animation: shimmerEffect 1.5s infinite;
         }
-        
+       
         .success-flash {
             animation: successFlash 0.6s ease;
         }
-        
+       
         @keyframes successFlash {
             0%, 100% { background-color: transparent; }
             50% { background-color: rgba(40, 167, 69, 0.2); }
         }
-        
+       
         /* Viewform transition blink effect */
         .viewform-inner {
             transition: opacity 0.1s ease-in-out;
         }
-        
+       
         @keyframes viewformBlink {
             0% { opacity: 1; }
             50% { opacity: 0; }
@@ -1473,7 +1521,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         return (capped ? '8:00' : (h + ':' + String(m).padStart(2, '0')));
     }
 
-    
+   
 
 
     // Before submitting, normalize time-out when needed so server TIMESTAMPDIFF(HOUR,...) stores correct capped value.
@@ -1913,17 +1961,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             alert('Please select a week first.');
             return;
         }
-        
+       
         const selected = dropdown.options[dropdown.selectedIndex];
         const weekNum = dropdown.value;
         const range = selected.getAttribute('data-range');
         const year = selected.getAttribute('data-year');
-        
+       
         // Update current state
         currentWeekState.week = weekNum;
         currentWeekState.year = year;
         currentWeekState.range = range;
-        
+       
         // Load the selected week
         loadViewForm(weekNum, range, year);
         closeWeekModal();
@@ -1951,17 +1999,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function loadSelectedWeek() {
         const dropdown = document.getElementById('weekDropdown');
         if (!dropdown || dropdown.selectedIndex < 0) return;
-        
+       
         const selected = dropdown.options[dropdown.selectedIndex];
         const weekNum = selected.value;
         const range = selected.getAttribute('data-range');
         const year = selected.getAttribute('data-year');
-        
+       
         // Update current state
         currentWeekState.week = weekNum;
         currentWeekState.year = year;
         currentWeekState.range = range;
-        
+       
         // Load the selected week
         loadViewForm(weekNum, range, year);
         closeWeekModal();
@@ -1978,7 +2026,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             if (pbtn) pbtn.style.display = 'inline-flex';
         } catch (e) { /* ignore */ }
 
-        
+       
 
         // Ensure there's an inner wrapper we can safely replace without touching
         // the outer container's layout or event listeners.
@@ -2065,7 +2113,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     Promise.all([Promise.all(loadPromises), timeout]).then(() => {
                         // Replace inner content now that styles are (likely) applied
                         inner.innerHTML = newHtml;
-                        
+                       
                         // Fade in the new content with blink effect - immediate
                         requestAnimationFrame(() => {
                             inner.style.opacity = '1';
@@ -2154,7 +2202,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             if (pbtn) pbtn.style.display = 'none';
         } catch (e) { /* ignore */ }
 
-        
+       
 
         // Similar safe replace used by loadViewForm
         let inner = container.querySelector('.viewform-inner');
@@ -2457,7 +2505,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Enhanced Form submission with animations
         const accomplishmentForm = document.getElementById("accomplishmentForm");
         if (accomplishmentForm) {
-            
+           
 
             accomplishmentForm.addEventListener("submit", function(e) {
                 e.preventDefault();
@@ -2485,8 +2533,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                
                 const submitBtn = document.getElementById('submit-button');
                 const msg = document.getElementById("formMessage");
-                
-                
+               
+               
                // enforce/normalize times (cap at 8h, handle overnight) before sending
                try { enforceTimesBeforeSubmit(); } catch (err) { console.warn('enforceTimesBeforeSubmit failed', err); }
                
@@ -2529,9 +2577,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 })
                 .then(data => {
                     console.log("Server response:", data);
-                    
-                    
-                    
+                   
+                   
+                   
                     if (data.status === "success") {
                         // Close immediately and navigate to Weekly View of current week
                         closeFillModal();
@@ -2575,26 +2623,26 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                         // Error animation
                         if (msg) {
                             msg.style.color = "#f44336";
-                            
+                           
                             msg.textContent = data.message || "Error saving data";
                         }
-                        
-                        
+                       
+                       
                     }
                 })
                 .catch(err => {
                     console.error("Submit error:", err);
-                    
-                    
-                    
+                   
+                   
+                   
                     // Network error animation
                     if (msg) {
                         msg.style.color = "#ff5722";
 
                         msg.textContent = "Network error. Please try again.";
                     }
-                    
-                    
+                   
+                   
                 });
             });
         }
@@ -2636,7 +2684,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         try { loadTodayRecord(currentWeekState.week, currentWeekState.year); } catch (e) { console.error('loadTodayRecord error', e); }
     }
 
-    
+   
 
     function closeScheduleModal() {
         const modal = document.getElementById('scheduleModal');
@@ -2749,14 +2797,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function getInactivityTimeout() {
       const savedValue = localStorage.getItem('inactivityTimeout');
       const savedUnit = localStorage.getItem('inactivityTimeoutUnit') || 'minutes';
-      
+     
       let timeoutMinutes = savedValue ? parseInt(savedValue) : 2;
-      
+     
       // Convert hours to minutes if needed
       if (savedUnit === 'hours') {
         timeoutMinutes = timeoutMinutes * 60;
       }
-      
+     
       return timeoutMinutes * 60 * 1000; // Convert to milliseconds
     }
 
@@ -2768,14 +2816,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     document.addEventListener('DOMContentLoaded', function() {
       const timeoutInput = document.getElementById('inactivityTimeout');
       const timeoutUnit = document.getElementById('timeoutUnit');
-      
+     
       if (timeoutInput && timeoutUnit) {
         const savedValue = localStorage.getItem('inactivityTimeout') || '2';
         const savedUnit = localStorage.getItem('inactivityTimeoutUnit') || 'minutes';
-        
+       
         timeoutInput.value = savedValue;
         timeoutUnit.value = savedUnit;
-        
+       
         // Update max value based on unit
         function updateMaxValue() {
           if (timeoutUnit.value === 'hours') {
@@ -2787,46 +2835,46 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             timeoutInput.max = 120; // Max 120 minutes
           }
         }
-        
+       
         updateMaxValue();
-        
+       
         // Save timeout when user changes the value
         timeoutInput.addEventListener('change', function() {
           let value = parseInt(this.value);
           const unit = timeoutUnit.value;
           const maxVal = unit === 'hours' ? 24 : 120;
-          
+         
           // Validate range
           if (isNaN(value) || value < 1) value = 1;
           if (value > maxVal) value = maxVal;
           this.value = value;
-          
+         
           // Save to localStorage
           localStorage.setItem('inactivityTimeout', value);
-          
+         
           // Restart the AFK timer with new timeout
           if (!afkModalShown) {
             resetAfkTimer();
           }
         });
-        
+       
         // Save unit when user changes it
         timeoutUnit.addEventListener('change', function() {
           localStorage.setItem('inactivityTimeoutUnit', this.value);
           updateMaxValue();
-          
+         
           // Restart the AFK timer with new timeout
           if (!afkModalShown) {
             resetAfkTimer();
           }
         });
-        
+       
         // Also handle on input for real-time validation
         timeoutInput.addEventListener('input', function() {
           let value = parseInt(this.value);
           const unit = timeoutUnit.value;
           const maxVal = unit === 'hours' ? 24 : 120;
-          
+         
           if (isNaN(value) || value < 1) {
             this.value = 1;
           }
@@ -2842,7 +2890,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       if (afkModalShown) {
         return;
       }
-      
+     
       // Clear existing timer
       clearTimeout(afkTimer);
 
@@ -2857,15 +2905,328 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     function showAfkModal() {
       afkModalShown = true;
-      
+     
       // Save current state before showing AFK modal
       saveCurrentState();
-      
+     
       // Set sessionStorage flag so AFK modal persists on refresh
       sessionStorage.setItem('afkModalActive', 'true');
       const afkModal = document.getElementById('afkModal');
       if (afkModal) {
         afkModal.style.display = 'flex';
+       
+        // Focus on password input
+        const passwordInput = document.getElementById('afkPassword');
+        if (passwordInput) {
+          passwordInput.focus();
+          passwordInput.value = '';
+         
+          // Remove any existing event listeners to prevent duplicates
+          passwordInput.removeEventListener('input', handleAfkPasswordInput);
+          passwordInput.removeEventListener('keypress', handleAfkPasswordKeypress);
+          passwordInput.removeEventListener('blur', handleAfkPasswordBlur);
+         
+          // Add event listeners for this modal instance
+          passwordInput.addEventListener('input', handleAfkPasswordInput);
+          passwordInput.addEventListener('keypress', handleAfkPasswordKeypress);
+          passwordInput.addEventListener('blur', handleAfkPasswordBlur);
+        }
+       
+        // Clear any previous error messages
+        const errorDiv = document.getElementById('afkPasswordError');
+        if (errorDiv) {
+          errorDiv.style.display = 'none';
+          errorDiv.textContent = '';
+        }
+       
+        // Start 30-second countdown timer
+        startAfkCountdown();
+      }
+    }
+
+    // Event handler functions for AFK password input
+    function handleAfkPasswordInput(e) {
+      console.log('Password input detected');
+     
+      const currentValue = e.target.value;
+     
+      if (currentValue.length > 0) {
+        // User has typed something, pause timer
+        if (afkCountdownTimer && !afkTimerPaused) {
+          console.log('User is typing, pausing timer');
+          stopAfkCountdown();
+          updateAfkCountdownDisplay();
+          console.log('Timer paused');
+        }
+       
+        // Auto-verify password as user types (debounced)
+        clearTimeout(e.target.verifyTimeout);
+        e.target.verifyTimeout = setTimeout(() => {
+          if (e.target.value.length >= 3) { // Only try after 3+ characters
+            autoVerifyAfkPassword();
+          }
+        }, 500); // Wait 500ms after user stops typing
+      } else {
+        // Input is empty, resume timer
+        if (afkTimerPaused) {
+          console.log('Input cleared, resuming timer from', afkTimeRemaining, 'seconds');
+          resumeAfkCountdown(); // Use resumeAfkCountdown instead of startAfkCountdown
+          console.log('Timer resumed from previous time');
+        }
+      }
+    }
+
+    function handleAfkPasswordKeypress(e) {
+      console.log('Key pressed:', e.key);
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        console.log('Enter key pressed, verifying password');
+        verifyAfkPassword();
+      }
+    }
+
+    function handleAfkPasswordBlur(e) {
+      console.log('Password input lost focus');
+      if (!e.target.value.trim()) {
+        console.log('Input is empty, restarting timer');
+        restartAfkCountdown();
+      }
+    }
+
+    // AFK Modal countdown timer (30 seconds)
+    let afkCountdownTimer = null;
+    let afkTimeRemaining = 30;
+    let afkTimerPaused = false;
+
+    function startAfkCountdown() {
+      afkTimeRemaining = 30;
+      afkTimerPaused = false;
+      updateAfkCountdownDisplay();
+     
+      if (afkCountdownTimer) {
+        clearInterval(afkCountdownTimer);
+      }
+     
+      afkCountdownTimer = setInterval(() => {
+        if (!afkTimerPaused) {
+          afkTimeRemaining--;
+          updateAfkCountdownDisplay();
+         
+          if (afkTimeRemaining <= 0) {
+            clearInterval(afkCountdownTimer);
+            forceLogout();
+          }
+        }
+      }, 1000);
+    }
+
+    function resumeAfkCountdown() {
+      // Resume countdown from current afkTimeRemaining (don't reset to 30)
+      afkTimerPaused = false;
+      updateAfkCountdownDisplay();
+     
+      if (afkCountdownTimer) {
+        clearInterval(afkCountdownTimer);
+      }
+     
+      afkCountdownTimer = setInterval(() => {
+        if (!afkTimerPaused) {
+          afkTimeRemaining--;
+          updateAfkCountdownDisplay();
+         
+          if (afkTimeRemaining <= 0) {
+            clearInterval(afkCountdownTimer);
+            forceLogout();
+          }
+        }
+      }, 1000);
+    }
+
+    function updateAfkCountdownDisplay(customMessage) {
+      const countdownElement = document.getElementById('afkCountdown');
+      if (countdownElement) {
+        if (customMessage) {
+          countdownElement.textContent = customMessage;
+          countdownElement.style.color = '#2ecc71'; // Green for custom messages
+        } else {
+          // Show the timer with pause indicator if paused
+          const timeText = `Time remaining: ${afkTimeRemaining}s`;
+          const pauseIndicator = afkTimerPaused ? '' : '';
+          countdownElement.textContent = timeText + pauseIndicator;
+         
+          // Change color based on timer state and time remaining
+          if (afkTimerPaused) {
+            countdownElement.style.color = '#f39c12'; // Orange when paused
+          } else if (afkTimeRemaining <= 10) {
+            countdownElement.style.color = '#e74c3c';
+          } else if (afkTimeRemaining <= 20) {
+            countdownElement.style.color = '#f39c12';
+          } else {
+            countdownElement.style.color = '#666';
+          }
+        }
+      }
+    }
+
+    function stopAfkCountdown() {
+      console.log('stopAfkCountdown called, pausing timer');
+      afkTimerPaused = true;
+    }
+
+    function restartAfkCountdown() {
+      console.log('restartAfkCountdown called');
+      if (afkCountdownTimer && afkTimerPaused) {
+        console.log('Unpausing timer');
+        afkTimerPaused = false;
+        updateAfkCountdownDisplay();    
+      }
+    }
+
+    function clearAfkCountdown() {
+      if (afkCountdownTimer) {
+        clearInterval(afkCountdownTimer);
+        afkCountdownTimer = null;
+      }
+      afkTimerPaused = false;
+    }
+
+    // Auto-verify AFK password as user types (silent verification)
+    function autoVerifyAfkPassword() {
+      const passwordInput = document.getElementById('afkPassword');
+      if (!passwordInput) return;
+     
+      const password = passwordInput.value.trim();
+      if (!password) return;
+     
+      // Send AJAX request to verify password (silently)
+      const formData = new FormData();
+      formData.append('ajax', 'verify_afk_password');
+      formData.append('password', password);
+     
+      fetch(window.location.pathname, {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Password correct - automatically resume session
+          updateAfkCountdownDisplay('Password correct! Resuming session...');
+          setTimeout(() => {
+            resumeSession();
+          }, 3000); // 3 second delay to show success message
+        }
+        // If password is wrong, do nothing (don't show error for auto-verify)
+      })
+      .catch(error => {
+        console.error('Auto password verification error:', error);
+        // Silent failure for auto-verify
+      });
+    }
+
+    // Manual verify AFK password function (for button click/Enter key)
+    window.verifyAfkPassword = function() {
+      const passwordInput = document.getElementById('afkPassword');
+      const errorDiv = document.getElementById('afkPasswordError');
+      const continueBtn = document.getElementById('afkContinueBtn');
+     
+      if (!passwordInput || !errorDiv || !continueBtn) return;
+     
+      const password = passwordInput.value.trim();
+     
+      if (!password) {
+        showAfkError('Please enter your password');
+        return;
+      }
+     
+      // Disable button and show loading state
+      continueBtn.disabled = true;
+      continueBtn.textContent = 'Verifying...';
+     
+      // Send AJAX request to verify password
+      const formData = new FormData();
+      formData.append('ajax', 'verify_afk_password');
+      formData.append('password', password);
+     
+      fetch(window.location.pathname, {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Password correct - resume session
+          updateAfkCountdownDisplay('Password correct! Resuming session...');
+          setTimeout(() => {
+            resumeSession();
+          }, 3000); // 3 second delay to show success message
+        } else {
+          // Password incorrect - show error
+          showAfkError(data.message || 'Invalid password');
+          continueBtn.disabled = false;
+          continueBtn.textContent = 'Continue Session';
+          passwordInput.focus();
+          passwordInput.select();
+         
+          // Restart countdown after wrong password
+          restartAfkCountdown();
+        }
+      })
+      .catch(error => {
+        console.error('Password verification error:', error);
+        showAfkError('Network error. Please try again.');
+        continueBtn.disabled = false;
+        continueBtn.textContent = 'Continue Session';
+        restartAfkCountdown();
+      });
+    };
+
+    function showAfkError(message) {
+      const errorDiv = document.getElementById('afkPasswordError');
+      if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+      }
+    }
+
+    function resumeSession() {
+      // Stop countdown timer
+      clearAfkCountdown();
+     
+      // Clear AFK flags
+      sessionStorage.removeItem('afkModalActive');
+      afkModalShown = false;
+     
+      // Hide modal
+      const afkModal = document.getElementById('afkModal');
+      if (afkModal) {
+        afkModal.style.display = 'none';
+      }
+     
+      // Restore previous state
+      restoreAfkState();
+     
+      // Restart AFK timer
+      resetAfkTimer();
+    }
+
+    function forceLogout() {
+      // Stop countdown timer
+      clearAfkCountdown();
+     
+      // Clear AFK flags
+      sessionStorage.removeItem('afkModalActive');
+      afkModalShown = false;
+     
+      // Call logout function with AFK logging
+      try {
+        logoutWithAFK();
+      } catch (err) {
+        console.error('Logout error from AFK timeout:', err);
+        // Fallback: log AFK logout and redirect
+        logAfkLogout().finally(() => {
+          window.location.href = 'Login.php';
+        });
       }
     }
 
@@ -2875,21 +3236,21 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Save basic page state
         const activeSidebar = localStorage.getItem('activeSidebar') || 'homeButton';
         sessionStorage.setItem('afkSavedSidebar', activeSidebar);
-        
+       
         // Save current week state
         sessionStorage.setItem('afkSavedWeekState', JSON.stringify(currentWeekState));
-        
+       
         // Enhanced content type detection - check actual content, not just sidebar
         let contentType = 'analytics'; // default
         const viewformContainer = document.getElementById('viewform-container');
-        
+       
         if (viewformContainer) {
           const viewformInner = viewformContainer.querySelector('.viewform-inner');
           if (viewformInner && viewformInner.innerHTML.trim()) {
             const content = viewformInner.innerHTML.toLowerCase();
-            
+           
             // Check for viewform-specific content patterns
-            if (content.includes('weekly accomplishment report') || 
+            if (content.includes('weekly accomplishment report') ||
                 content.includes('task accomplished') ||
                 content.includes('weekly-report-table') ||
                 content.includes('time-in') ||
@@ -2899,9 +3260,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 content.includes('week of')) {
               contentType = 'viewform';
               console.log('Detected viewform content');
-            } 
+            }
             // Check for analytics/dashboard content
-            else if (content.includes('analytics') || 
+            else if (content.includes('analytics') ||
                      content.includes('dashboard') ||
                      content.includes('chart') ||
                      content.includes('graph') ||
@@ -2937,9 +3298,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             contentType = 'analytics';
           }
         }
-        
+       
         sessionStorage.setItem('afkSavedContentType', contentType);
-        
+       
         // Save the current viewform content if in viewform view
         if (contentType === 'viewform') {
           // Save current week parameters for viewform restoration
@@ -2952,11 +3313,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             range: currentWeekState.range
           });
         }
-        
+       
         // Enhanced: Save ALL open modals and their states
         const openModals = [];
         const allModals = document.querySelectorAll('.modal');
-        
+       
         allModals.forEach(modal => {
           if (modal.style.display === 'flex' || modal.style.display === 'block') {
             if (modal.id !== 'afkModal') { // Don't save the AFK modal itself
@@ -2964,27 +3325,27 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 id: modal.id,
                 display: modal.style.display
               };
-              
+             
               // Save form data if it's a form modal
               if (modal.id === 'fillOutModal') {
                 const timeIn = document.getElementById('time-in');
                 const timeOut = document.getElementById('time-out');
                 const task = document.getElementById('task');
-                
+               
                 modalState.formData = {
                   timeIn: timeIn ? timeIn.value : '',
                   timeOut: timeOut ? timeOut.value : '',
                   task: task ? task.value : ''
                 };
               }
-              
+             
               // Save schedule modal state
               if (modal.id === 'scheduleModal') {
                 const scheduleData = {};
                 ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
                   const amSel = document.getElementById(`official-${day}-am`);
                   const pmSel = document.getElementById(`official-${day}-pm`);
-                  
+                 
                   scheduleData[day] = {
                     am: amSel ? amSel.value : '',
                     pm: pmSel ? pmSel.value : ''
@@ -2994,7 +3355,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 scheduleData.company = company ? company.value : '';
                 modalState.scheduleData = scheduleData;
               }
-              
+             
               // Save week select modal state
               if (modal.id === 'weekSelectModal') {
                 const weekDropdown = document.getElementById('weekDropdown');
@@ -3003,7 +3364,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                   selectedIndex: weekDropdown ? weekDropdown.selectedIndex : -1
                 };
               }
-              
+             
               // Save profile modal states
               if (modal.id === 'userProfileModal' || modal.id === 'editProfileModal') {
                 modalState.profileData = {
@@ -3011,19 +3372,19 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                   wasOpen: true
                 };
               }
-              
+             
               openModals.push(modalState);
             }
           }
         });
-        
+       
         // Save all modal states
         if (openModals.length > 0) {
           sessionStorage.setItem('afkSavedModals', JSON.stringify(openModals));
         } else {
           sessionStorage.removeItem('afkSavedModals');
         }
-        
+       
         console.log('Complete state saved for AFK recovery:', {
           sidebar: activeSidebar,
           contentType: contentType,
@@ -3043,13 +3404,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const savedWeekState = sessionStorage.getItem('afkSavedWeekState');
         const savedModals = sessionStorage.getItem('afkSavedModals');
         const savedContentType = sessionStorage.getItem('afkSavedContentType');
-        
+       
         console.log('Restoring AFK state:', {
           sidebar: savedSidebar,
           contentType: savedContentType,
           weekState: savedWeekState
         });
-        
+       
         // Restore week state first
         if (savedWeekState) {
           try {
@@ -3059,7 +3420,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             console.warn('Failed to restore week state:', e);
           }
         }
-        
+       
         // Restore active sidebar IMMEDIATELY (before content loads)
         if (savedSidebar) {
           const sidebarItems = ['homeButton','fillButton','weekButton','scheduleButton'];
@@ -3067,7 +3428,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             const el = document.getElementById(id);
             if (el) el.classList.remove('active-nav');
           });
-          
+         
           const activeEl = document.getElementById(savedSidebar);
           if (activeEl) {
             activeEl.classList.add('active-nav');
@@ -3075,11 +3436,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             console.log('Restored sidebar state:', savedSidebar);
           }
         }
-        
+       
         // Determine what content to restore based on BOTH sidebar and content type
         let shouldRestoreViewform = false;
         let shouldRestoreAnalytics = false;
-        
+       
         if (savedContentType === 'viewform' || savedSidebar === 'weekButton') {
           shouldRestoreViewform = true;
         } else if (savedContentType === 'analytics' || savedSidebar === 'homeButton') {
@@ -3101,7 +3462,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         } else {
           shouldRestoreAnalytics = true; // fallback
         }
-        
+       
         // Restore base content
         setTimeout(() => {
           try {
@@ -3120,62 +3481,62 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             loadAnalytics();
           }
         }, 300);
-        
+       
         // Restore all modals with their states
         if (savedModals) {
           try {
             const modalStates = JSON.parse(savedModals);
             console.log('Restoring modals:', modalStates.map(m => m.id));
-            
+           
             // Restore modals after base content is loaded
             setTimeout(() => {
               modalStates.forEach(modalState => {
                 const modal = document.getElementById(modalState.id);
                 if (modal) {
                   modal.style.display = modalState.display || 'flex';
-                  
+                 
                   // Restore form data for fillOutModal
                   if (modalState.id === 'fillOutModal' && modalState.formData) {
                     const timeIn = document.getElementById('time-in');
                     const timeOut = document.getElementById('time-out');
                     const task = document.getElementById('task');
-                    
+                   
                     if (timeIn) timeIn.value = modalState.formData.timeIn || '';
                     if (timeOut) timeOut.value = modalState.formData.timeOut || '';
                     if (task) task.value = modalState.formData.task || '';
-                    
+                   
                     console.log('Restored fillOut form data');
                   }
-                  
+                 
                   // Restore schedule modal data
                   if (modalState.id === 'scheduleModal' && modalState.scheduleData) {
                     // First attach listeners and populate selects
                     try { attachScheduleListeners(); } catch (e) { console.error('attachScheduleListeners error', e); }
-                    
+                   
                     // Then restore the data
                     setTimeout(() => {
                       ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
                         if (modalState.scheduleData[day]) {
                           const amSel = document.getElementById(`official-${day}-am`);
                           const pmSel = document.getElementById(`official-${day}-pm`);
-                          
+                         
                           if (amSel) amSel.value = modalState.scheduleData[day].am || '';
                           if (pmSel) pmSel.value = modalState.scheduleData[day].pm || '';
-                          
+                         
                           updateDayDisplay(day);
                           updateHidden(day);
                         }
                       });
-                      
+                     
                       const company = document.getElementById('company');
                       if (company && modalState.scheduleData.company) {
                         company.value = modalState.scheduleData.company;
                       }
-                      
+                     
                       console.log('Restored schedule modal data');
                     }, 100);
                   }
-                  
+                 
                   // Restore week select modal data
                   if (modalState.id === 'weekSelectModal' && modalState.weekSelectData) {
                     const weekDropdown = document.getElementById('weekDropdown');
@@ -3184,14 +3545,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     }
                     console.log('Restored week select modal data');
                   }
-                  
+                 
                   // Restore profile modals
                   if (modalState.id === 'userProfileModal' || modalState.id === 'editProfileModal') {
                     // Profile modals don't need special data restoration
                     modal.style.display = 'flex';
                     console.log('Restored profile modal');
                   }
-                  
+                 
                   console.log(`Restored modal: ${modalState.id}`);
                 }
               });
@@ -3200,7 +3561,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             console.error('Failed to restore modal states:', e);
           }
         }
-        
+       
         // Clean up all saved state
         sessionStorage.removeItem('afkSavedSidebar');
         sessionStorage.removeItem('afkSavedWeekState');
@@ -3209,7 +3570,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         sessionStorage.removeItem('afkSavedViewformWeek');
         sessionStorage.removeItem('afkSavedViewformYear');
         sessionStorage.removeItem('afkSavedViewformRange');
-        
+       
         console.log('Complete AFK state restored successfully');
       } catch (error) {
         console.error('Error restoring AFK state:', error);
@@ -3228,10 +3589,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       // Clear the AFK flag ONLY when user properly responds
       sessionStorage.removeItem('afkModalActive');
       afkModalShown = false;
-      
+     
       // Close AFK modal
       closeAfkModal();
-      
+     
       // Call logout function with AFK logging
       try {
         logoutWithAFK();
@@ -3285,10 +3646,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     // Events that indicate user activity
     const activityEvents = [
-      'mousedown', 
-      'mousemove', 
-      'keypress', 
-      'scroll', 
+      'mousedown',
+      'mousemove',
+      'keypress',
+      'scroll',
       'touchstart',
       'click'
     ];
@@ -3307,7 +3668,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           restoreAfkState();
         }, 1000); // Wait for page to fully load
       }
-      
+     
       // Check if AFK modal was active before page refresh
       if (sessionStorage.getItem('afkModalActive') === 'true') {
         // Restore AFK modal state - don't let refresh dismiss it
@@ -3315,8 +3676,38 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const afkModal = document.getElementById('afkModal');
         if (afkModal) {
           afkModal.style.display = 'flex';
+         
+          // Reset AFK countdown timer variables to ensure proper state
+          afkTimeRemaining = 30;
+          afkTimerPaused = false;
+         
+          // Clear any existing countdown timer
+          if (afkCountdownTimer) {
+            clearInterval(afkCountdownTimer);
+            afkCountdownTimer = null;
+          }
+         
+          // Start fresh countdown
+          startAfkCountdown();
+         
+          // Re-attach event listeners for password input (critical for pause/resume functionality)
+          const passwordInput = document.getElementById('afkPassword');
+          if (passwordInput) {
+            passwordInput.focus();
+            passwordInput.value = '';
+           
+            // Remove any existing event listeners to prevent duplicates
+            passwordInput.removeEventListener('input', handleAfkPasswordInput);
+            passwordInput.removeEventListener('keypress', handleAfkPasswordKeypress);
+            passwordInput.removeEventListener('blur', handleAfkPasswordBlur);
+           
+            // Add event listeners for this modal instance
+            passwordInput.addEventListener('input', handleAfkPasswordInput);
+            passwordInput.addEventListener('keypress', handleAfkPasswordKeypress);
+            passwordInput.addEventListener('blur', handleAfkPasswordBlur);
+          }
         }
-        // Don't start timer - user must respond to the modal
+        // Don't start main AFK timer - user must respond to the modal
       } else {
         // Normal page load - start AFK timer
         resetAfkTimer();
@@ -3395,7 +3786,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             });
         })();
 
-        
+       
     </script>
 </body>
 </html>
