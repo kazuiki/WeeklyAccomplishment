@@ -19,10 +19,8 @@ $old = [
     'change_email' => '',
 ];
 
-$conn = new mysqli("localhost", "root", "", "weeklyreport");
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+// Use centralized DB connection
+require_once __DIR__ . '/db.php';
 
 // AJAX: verify OTP code without submitting the whole form
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "verify_code") {
@@ -571,6 +569,10 @@ $conn->close();
                 <div class="signup-link" style="margin-top:12px;">
                     <span>No Account?</span>
                     <a href="javascript:void(0)" onclick="openSignupModal()">Sign up here</a>
+                </div>
+                <div class="signup-link" style="margin-top:8px; padding-top:8px; border-top:1px solid #e0e0e0;">
+                    <span style="font-size:13px; color:#999;">Admin?</span>
+                    <a href="admin_login.php" style="font-size:13px;">Login here</a>
                 </div>
             </form>
         </div>
