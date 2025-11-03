@@ -1,9 +1,8 @@
 <?php
 session_start();
+require_once 'db.php';
 
 if (isset($_SESSION["user_id"])) {
-    $conn = new mysqli("localhost", "root", "", "weeklyreport");
-    
     if (!$conn->connect_error) {
         $user_id = $_SESSION["user_id"];
         $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
@@ -27,8 +26,6 @@ if (isset($_SESSION["user_id"])) {
             $log_logout->execute();
             $log_logout->close();
         }
-        
-        $conn->close();
     }
 }
 
