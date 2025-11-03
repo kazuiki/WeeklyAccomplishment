@@ -195,6 +195,46 @@ $stats = $stats_result->fetch_assoc();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Weekly Accomplishment System</title>
     <style>
+        /* Force-hide any visible scrollbars across browsers while preserving scrolling where allowed */
+        *::-webkit-scrollbar { display: none !important; }
+        html, body, .container, .table-container { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+        /* Also ensure webkit-based scrollbars are hidden on the container/table specifically */
+        .container::-webkit-scrollbar, .table-container::-webkit-scrollbar { display: none !important; }
+        /* Fix layout so the page itself doesn't scroll. Make internal areas scroll instead.
+           This keeps the overall layout fixed in the viewport while allowing table/container
+           scrolling where needed. Scrollbars are visually hidden to match the requested UI. */
+        html, body {
+            height: 100vh;
+            overflow: hidden; /* Prevent page-level scrolling */
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+        html::-webkit-scrollbar, body::-webkit-scrollbar {
+            width: 0; /* Chrome, Safari */
+            height: 0;
+        }
+
+        /* Container fills remaining viewport under navbar and will scroll internally if needed */
+        .container {
+            height: calc(100vh - 72px); /* adjust if navbar height changes */
+            overflow: auto;
+            padding: 30px;
+            box-sizing: border-box;
+        }
+
+        /* Keep individual cards layout-stable */
+        .card {
+            overflow: visible;
+        }
+
+        /* Table area scrolls internally; hide its native scrollbar for a cleaner look */
+        .table-container {
+            max-height: calc(100vh - 300px); /* rough available space for table area */
+            overflow: auto;
+        }
+        .table-container::-webkit-scrollbar { width: 0; height: 0; }
+        .table-container { scrollbar-width: none; }
+
         * {
             margin: 0;
             padding: 0;
@@ -265,10 +305,10 @@ $stats = $stats_result->fetch_assoc();
         
         .stat-card {
             background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-radius: 10px;
+            padding: 14px 16px; /* reduced padding for a smaller card */
+            box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
         
         .stat-card:hover {
@@ -277,8 +317,10 @@ $stats = $stats_result->fetch_assoc();
         }
         
         .stat-card .icon {
-            font-size: 36px;
-            margin-bottom: 10px;
+            font-size: 28px;
+            margin-bottom: 8px;
+            display: inline-block;
+            vertical-align: middle;
         }
         
         .stat-card .label {
@@ -288,8 +330,8 @@ $stats = $stats_result->fetch_assoc();
         }
         
         .stat-card .value {
-            font-size: 32px;
-            font-weight: bold;
+            font-size: 22px; /* smaller value text */
+            font-weight: 700;
             color: #333;
         }
         
@@ -526,11 +568,14 @@ $stats = $stats_result->fetch_assoc();
 <body>
     <nav class="navbar">
         <h1>
-            <span>📊</span>
+            <img src="img/ui.png" alt="Admin Dashboard" style="width:24px;height:24px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.insertBefore(document.createTextNode('📊 '), this);">
             Admin Dashboard
         </h1>
         <div class="admin-info">
-            <a href="admin_students.php" class="logout-btn" style="margin-right: 10px;">👥 All Students</a>
+            <a href="admin_students.php" class="logout-btn" style="margin-right: 10px;">
+                <img src="img/group.png" alt="All Users" style="width:18px;height:18px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.appendChild(document.createTextNode('👥 '));">
+                All Users
+            </a>
             <span class="admin-name">Welcome, <?php echo htmlspecialchars($_SESSION['admin_username']); ?></span>
             <a href="?logout=1" class="logout-btn">Logout</a>
         </div>
@@ -540,19 +585,25 @@ $stats = $stats_result->fetch_assoc();
         <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="icon">👥</div>
+                <div class="icon">
+                        <img src="img/group.png" alt="Total Users" style="width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'; this.parentNode.innerHTML='👥';">
+                    </div>
                 <div class="label">Total Students</div>
-                <div class="value"><?php echo number_format($stats['total_students']); ?></div>
+                <div id="stat-total-students" class="value"><?php echo number_format($stats['total_students']); ?></div>
             </div>
             <div class="stat-card">
-                <div class="icon">📝</div>
+                <div class="icon">
+                    <img src="img/sign-in.png" alt="Total Log Entries" style="width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'; this.parentNode.innerHTML='📝';">
+                </div>
                 <div class="label">Total Log Entries</div>
-                <div class="value"><?php echo number_format($stats['total_logs']); ?></div>
+                <div id="stat-total-logs" class="value"><?php echo number_format($stats['total_logs']); ?></div>
             </div>
             <div class="stat-card">
-                <div class="icon">⏱️</div>
+                <div class="icon">
+                    <img src="img/working-hours.png" alt="Total Hours" style="width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'; this.parentNode.innerHTML='⏱️';">
+                </div>
                 <div class="label">Total Hours Logged</div>
-                <div class="value"><?php echo number_format($stats['total_hours'], 1); ?></div>
+                <div id="stat-total-hours" class="value"><?php echo number_format($stats['total_hours'], 1); ?></div>
             </div>
         </div>
         
@@ -608,7 +659,7 @@ $stats = $stats_result->fetch_assoc();
                 
                 <!-- Pagination Controls in Header -->
                 <?php if ($total_pages > 1): ?>
-                    <div class="pagination">
+                    <div class="pagination" id="dashboard-pagination">
                         <?php
                         // Build base URL with current filters
                         $base_url = "admin_dashboard.php?";
@@ -621,7 +672,7 @@ $stats = $stats_result->fetch_assoc();
                         ?>
                         
                         <!-- Previous button -->
-                        <a href="<?php echo $base_url; ?>page=<?php echo max(1, $page - 1); ?>" 
+                        <a data-ajax="dashboard" href="<?php echo $base_url; ?>page=<?php echo max(1, $page - 1); ?>" 
                            class="pagination-btn <?php echo $page <= 1 ? 'disabled' : ''; ?>">
                             ← Previous
                         </a>
@@ -632,14 +683,14 @@ $stats = $stats_result->fetch_assoc();
                         $end_page = min($total_pages, $page + 2);
                         
                         if ($start_page > 1): ?>
-                            <a href="<?php echo $base_url; ?>page=1" class="pagination-btn">1</a>
+                            <a data-ajax="dashboard" href="<?php echo $base_url; ?>page=1" class="pagination-btn">1</a>
                             <?php if ($start_page > 2): ?>
                                 <span class="pagination-btn disabled">...</span>
                             <?php endif; ?>
                         <?php endif; ?>
                         
                         <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
-                            <a href="<?php echo $base_url; ?>page=<?php echo $i; ?>" 
+                            <a data-ajax="dashboard" href="<?php echo $base_url; ?>page=<?php echo $i; ?>" 
                                class="pagination-btn <?php echo $i == $page ? 'active' : ''; ?>">
                                 <?php echo $i; ?>
                             </a>
@@ -649,11 +700,11 @@ $stats = $stats_result->fetch_assoc();
                             <?php if ($end_page < $total_pages - 1): ?>
                                 <span class="pagination-btn disabled">...</span>
                             <?php endif; ?>
-                            <a href="<?php echo $base_url; ?>page=<?php echo $total_pages; ?>" class="pagination-btn"><?php echo $total_pages; ?></a>
+                            <a data-ajax="dashboard" href="<?php echo $base_url; ?>page=<?php echo $total_pages; ?>" class="pagination-btn"><?php echo $total_pages; ?></a>
                         <?php endif; ?>
                         
                         <!-- Next button -->
-                        <a href="<?php echo $base_url; ?>page=<?php echo min($total_pages, $page + 1); ?>" 
+                        <a data-ajax="dashboard" href="<?php echo $base_url; ?>page=<?php echo min($total_pages, $page + 1); ?>" 
                            class="pagination-btn <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
                             Next →
                         </a>
@@ -667,7 +718,7 @@ $stats = $stats_result->fetch_assoc();
             </div>
             <div class="table-container">
                 <?php if ($result && $result->num_rows > 0): ?>
-                    <table>
+                    <table id="dashboard-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -715,5 +766,200 @@ $stats = $stats_result->fetch_assoc();
             </div>
         </div>
     </div>
+    <script>
+        // Intercept dashboard pagination clicks and update table + pager in-place
+        (function(){
+            document.addEventListener('click', function(e){
+                var a = e.target.closest('a[data-ajax="dashboard"]');
+                if (!a) return;
+                // If disabled, let it be inert
+                if (a.classList.contains('disabled')){
+                    e.preventDefault();
+                    return;
+                }
+                e.preventDefault();
+                fetch(a.href, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(function(resp){ return resp.text(); })
+                .then(function(html){
+                    var parser = new DOMParser();
+                    var doc = parser.parseFromString(html, 'text/html');
+                    var newTable = doc.querySelector('#dashboard-table');
+                    var newPager = doc.querySelector('#dashboard-pagination');
+                    if (newTable && document.querySelector('#dashboard-table')){
+                        document.querySelector('#dashboard-table').replaceWith(newTable);
+                    }
+                    if (newPager && document.querySelector('#dashboard-pagination')){
+                        document.querySelector('#dashboard-pagination').replaceWith(newPager);
+                    }
+                    // Update URL without scrolling
+                    history.pushState({}, '', a.href);
+                })
+                .catch(function(err){
+                    console.error('AJAX pagination failed, falling back to full navigation', err);
+                    window.location = a.href;
+                });
+            });
+
+            // Keep back/forward behavior simple: reload to get correct state
+            window.addEventListener('popstate', function(){
+                location.reload();
+            });
+        })();
+        
+        // Real-time polling to refresh stat cards and table data with visual feedback
+        (function(){
+            var lastStats = {};
+            var lastTableData = '';
+            
+            function animateValueChange(element) {
+                // Add a subtle pulse animation and color flash when value changes
+                element.style.transform = 'scale(1.08)';
+                element.style.color = '#667eea';
+                element.style.transition = 'all 0.3s ease';
+                setTimeout(function() {
+                    element.style.transform = 'scale(1)';
+                    element.style.color = '#333';
+                }, 300);
+            }
+            
+            function animateNewRow(row) {
+                // Highlight new rows with a subtle background flash
+                row.style.backgroundColor = '#e8f4fd';
+                row.style.transition = 'background-color 1s ease';
+                setTimeout(function() {
+                    row.style.backgroundColor = '';
+                }, 1000);
+            }
+            
+            function updateStatsDom(data){
+                if (!data) return;
+                if (typeof data.total_students !== 'undefined'){
+                    var el = document.getElementById('stat-total-students');
+                    var newValue = Number(data.total_students).toLocaleString();
+                    if (el && el.textContent !== newValue) {
+                        el.textContent = newValue;
+                        animateValueChange(el);
+                    }
+                }
+                if (typeof data.total_logs !== 'undefined'){
+                    var el2 = document.getElementById('stat-total-logs');
+                    var newValue2 = Number(data.total_logs).toLocaleString();
+                    if (el2 && el2.textContent !== newValue2) {
+                        el2.textContent = newValue2;
+                        animateValueChange(el2);
+                    }
+                }
+                if (typeof data.total_hours !== 'undefined'){
+                    var el3 = document.getElementById('stat-total-hours');
+                    var hoursText = Number(data.total_hours).toFixed(1);
+                    if (el3 && el3.textContent !== hoursText) {
+                        el3.textContent = hoursText;
+                        animateValueChange(el3);
+                    }
+                }
+            }
+
+            function updateTableData(data) {
+                if (!data || !data.rows) return;
+                
+                var tbody = document.querySelector('#dashboard-table tbody');
+                if (!tbody) return;
+                
+                var newDataString = JSON.stringify(data.rows);
+                if (newDataString === lastTableData) return; // No changes
+                
+                console.log('Table data changed, updating rows');
+                lastTableData = newDataString;
+                
+                // Clear existing rows
+                tbody.innerHTML = '';
+                
+                // Add new rows
+                data.rows.forEach(function(row, index) {
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = 
+                        '<td>' + row.date_record + '</td>' +
+                        '<td><a href="admin_student_detail.php?id=' + row.user_id + '" style="color: #667eea; text-decoration: none; font-weight: 600;">' + row.username + '</a></td>' +
+                        '<td>' + row.email + '</td>' +
+                        '<td>' + row.time_in + '</td>' +
+                        '<td>' + row.time_out + '</td>' +
+                        '<td><span class="badge badge-info">' + row.grand_total + ' hrs</span></td>' +
+                        '<td><div class="task-preview" title="' + row.task_completed + '">' + row.task_completed + '</div></td>' +
+                        '<td>' + row.last_updated_at + '</td>';
+                    
+                    tbody.appendChild(tr);
+                    
+                    // Animate new/updated rows
+                    if (index < 2) { // Highlight first 2 rows as they're likely new
+                        animateNewRow(tr);
+                    }
+                });
+            }
+
+            function fetchStats(){
+                console.log('Fetching stats at:', new Date().toLocaleTimeString());
+                fetch('get_stats.php', {
+                    cache: 'no-store', 
+                    headers: {'X-Requested-With': 'XMLHttpRequest'},
+                    method: 'GET'
+                })
+                .then(function(r){ 
+                    console.log('Response status:', r.status);
+                    if(!r.ok) throw new Error('HTTP ' + r.status + ': ' + r.statusText); 
+                    return r.json(); 
+                })
+                .then(function(json){
+                    console.log('Received stats:', json);
+                    // Only update DOM when values changed to avoid unnecessary reflows
+                    if (JSON.stringify(json) !== JSON.stringify(lastStats)){
+                        console.log('Stats changed, updating DOM');
+                        lastStats = json;
+                        updateStatsDom(json);
+                    } else {
+                        console.log('Stats unchanged');
+                    }
+                })
+                .catch(function(err){
+                    console.error('Stats fetch failed:', err);
+                    console.log('Will retry in next interval');
+                });
+            }
+
+            function fetchTableData(){
+                // Get current URL parameters to maintain filters
+                var urlParams = new URLSearchParams(window.location.search);
+                var tableUrl = 'get_table_data.php?' + urlParams.toString();
+                
+                fetch(tableUrl, {
+                    cache: 'no-store',
+                    headers: {'X-Requested-With': 'XMLHttpRequest'},
+                    method: 'GET'
+                })
+                .then(function(r){ 
+                    if(!r.ok) throw new Error('HTTP ' + r.status + ': ' + r.statusText); 
+                    return r.json(); 
+                })
+                .then(function(json){
+                    updateTableData(json);
+                })
+                .catch(function(err){
+                    console.error('Table data fetch failed:', err);
+                });
+            }
+
+            function fetchAllData() {
+                fetchStats();
+                fetchTableData();
+            }
+
+            // initial fetch after page load
+            window.addEventListener('load', function(){ 
+                fetchAllData(); 
+                console.log('Real-time monitoring started - stats and table data update every 1 second');
+            });
+            // poll every 1 second for truly real-time updates of both stats and table
+            setInterval(fetchAllData, 1000);
+        })();
+    </script>
 </body>
 </html>

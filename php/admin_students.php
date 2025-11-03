@@ -482,18 +482,21 @@ $result = $conn->query($query);
     
     <nav class="navbar">
         <h1>
-            <span>👥</span>
-            All Students
+            <img src="img/group.png" alt="All Users" style="width:24px;height:24px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.insertBefore(document.createTextNode('👥 '), this);">
+            All Users
         </h1>
         <div class="navbar-links">
-            <a href="admin_dashboard.php" class="nav-link">📊 Dashboard</a>
+            <a href="admin_dashboard.php" class="nav-link">
+                <img src="img/ui.png" alt="Dashboard" style="width:18px;height:18px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.insertBefore(document.createTextNode('📊 '), this);">
+                Dashboard
+            </a>
             <a href="?logout=1" class="nav-link">Logout</a>
         </div>
     </nav>
     
     <div class="container">
         <div class="page-header">
-            <h2>Student Directory</h2>
+            <h2>Users Directory</h2>
             <p>View all registered students and their accomplishment statistics</p>
         </div>
         
