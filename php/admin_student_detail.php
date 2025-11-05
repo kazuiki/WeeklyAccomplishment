@@ -114,7 +114,7 @@ if ($total_pages > 1) {
         if ($start_page > 2) $pagination_html .= '<span style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;color:#999;">...</span>';
     }
     for ($i = $start_page; $i <= $end_page; $i++) {
-        $activeStyle = $i == $page ? 'background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border-color:#667eea;' : '';
+        $activeStyle = $i == $page ? 'background:linear-gradient(135deg,#5A9BD5 0%,#2C5E8F 100%);color:#fff;border-color:#5A9BD5;' : '';
     $pagination_html .= '<a data-ajax="logs" href="' . $base_url . '&page=' . $i . '" style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;text-decoration:none;color:#666;' . $activeStyle . '">' . $i . '</a>';
     }
     if ($end_page < $total_pages) {
@@ -186,7 +186,7 @@ if ($week_total_pages > 1) {
         if ($start_w > 2) $weekly_pagination_html .= '<span style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;color:#999;">...</span>';
     }
     for ($w = $start_w; $w <= $end_w; $w++) {
-        $activeStyle = $w == $week_page ? 'background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border-color:#667eea;' : '';
+        $activeStyle = $w == $week_page ? 'background:linear-gradient(135deg,#5A9BD5 0%,#2C5E8F 100%);color:#fff;border-color:#5A9BD5;' : '';
     $weekly_pagination_html .= '<a data-ajax="weeks" href="' . $base_week_url . '&week_page=' . $w . '" style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;text-decoration:none;color:#666;' . $activeStyle . '">' . $w . '</a>';
     }
     if ($end_w < $week_total_pages) {
@@ -213,15 +213,15 @@ if ($week_total_pages > 1) {
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
             min-height: 100vh;
         }
         
         .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(145deg, #2C5E8F 0%, #1e4a70 100%);
             color: white;
             padding: 15px 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 15px rgba(44, 94, 143, 0.2);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -259,8 +259,9 @@ if ($week_total_pages > 1) {
             background: white;
             border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(44, 94, 143, 0.1);
             margin-bottom: 30px;
+            border-left: 5px solid #5A9BD5;
         }
         
         .user-info {
@@ -272,7 +273,7 @@ if ($week_total_pages > 1) {
         .user-avatar {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -303,7 +304,14 @@ if ($week_total_pages > 1) {
             background: white;
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 8px rgba(44, 94, 143, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 4px solid #5A9BD5;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(90, 155, 213, 0.2);
         }
         
         .stat-card .label {
@@ -322,8 +330,13 @@ if ($week_total_pages > 1) {
             background: white;
             border-radius: 12px;
             padding: 25px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(44, 94, 143, 0.08);
             margin-bottom: 20px;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 4px 20px rgba(90, 155, 213, 0.15);
         }
         
         .card-header {
@@ -371,8 +384,8 @@ if ($week_total_pages > 1) {
             border-radius: 12px;
             font-size: 12px;
             font-weight: 500;
-            background: #d1ecf1;
-            color: #0c5460;
+            background: #E8F2FC;
+            color: #2C5E8F;
         }
         
         .task-cell {
