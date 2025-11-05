@@ -69,22 +69,6 @@ $result = $conn->query($query);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin</title>
     <style>
-        :root {
-            --primary-dark: #2C5E8F;
-            --primary-main: #5A9BD5;
-            --primary-light: #E8F2FC;
-            --accent-amber: #F0B323;
-            --accent-success: #28a745;
-            --accent-warning: #ffc107;
-            --accent-danger: #dc3545;
-            --neutral-dark: #212529;
-            --neutral-gray: #6c757d;
-            --neutral-light: #f8f9fa;
-            --neutral-white: #ffffff;
-            --border-color: #dee2e6;
-            --shadow-color: rgba(44, 94, 143, 0.15);
-        }
-        
         * {
             margin: 0;
             padding: 0;
@@ -93,15 +77,15 @@ $result = $conn->query($query);
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--neutral-light) 0%, #ffffff 100%);
+            background: #f5f7fa;
             min-height: 100vh;
         }
         
         .navbar {
-            background: linear-gradient(145deg, #2C5E8F 0%, #1e4a70 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 15px 30px;
-            box-shadow: 0 2px 20px rgba(44, 94, 143, 0.15);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -179,7 +163,7 @@ $result = $conn->query($query);
         
         .student-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(90, 155, 213, 0.25);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
         }
         
         .student-card.inactive:hover {
@@ -198,7 +182,7 @@ $result = $conn->query($query);
         .student-avatar {
             width: 60px;
             height: 60px;
-            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -264,7 +248,7 @@ $result = $conn->query($query);
         .stat-value {
             font-size: 20px;
             font-weight: bold;
-            color: #5A9BD5;
+            color: #667eea;
             display: block;
         }
         
@@ -351,7 +335,7 @@ $result = $conn->query($query);
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(90, 155, 213, 0.95);
+            background: rgba(102, 126, 234, 0.9);
             color: white;
             padding: 8px 15px;
             border-radius: 20px;

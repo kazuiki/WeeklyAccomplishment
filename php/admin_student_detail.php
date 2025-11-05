@@ -100,22 +100,6 @@ $weekly_result = $stmt->get_result();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Details - <?php echo htmlspecialchars($user['username']); ?></title>
     <style>
-        :root {
-            --primary-dark: #2C5E8F;
-            --primary-main: #5A9BD5;
-            --primary-light: #E8F2FC;
-            --accent-amber: #F0B323;
-            --accent-success: #28a745;
-            --accent-warning: #ffc107;
-            --accent-danger: #dc3545;
-            --neutral-dark: #212529;
-            --neutral-gray: #6c757d;
-            --neutral-light: #f8f9fa;
-            --neutral-white: #ffffff;
-            --border-color: #dee2e6;
-            --shadow-color: rgba(44, 94, 143, 0.15);
-        }
-        
         * {
             margin: 0;
             padding: 0;
@@ -124,15 +108,15 @@ $weekly_result = $stmt->get_result();
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--neutral-light) 0%, #ffffff 100%);
+            background: #f5f7fa;
             min-height: 100vh;
         }
         
         .navbar {
-            background: linear-gradient(145deg, #2C5E8F 0%, #1e4a70 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 15px 30px;
-            box-shadow: 0 2px 20px rgba(44, 94, 143, 0.15);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -183,7 +167,7 @@ $weekly_result = $stmt->get_result();
         .user-avatar {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;

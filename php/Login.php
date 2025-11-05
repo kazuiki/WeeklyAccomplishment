@@ -682,17 +682,9 @@ $conn->close();
                         <input type="text" id="username" name="username" placeholder=" " required value="<?= htmlspecialchars($old['username']) ?>">
                         <label for="username">Username</label>
                     </div>
-                    <div class="input-group float password-field">
+                    <div class="input-group float">
                         <input type="password" id="password" name="password" placeholder=" " required>
                         <label for="password">Password</label>
-                        <span class="password-toggle" onclick="togglePassword('password')">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path class="eye-open" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                <circle class="eye-open" cx="12" cy="12" r="3"></circle>
-                                <path class="eye-closed" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" style="display:none;"></path>
-                                <line class="eye-closed" x1="1" y1="1" x2="23" y2="23" style="display:none;"></line>
-                            </svg>
-                        </span>
                     </div>
                     <div class="form-row-small">
                         <a class="link forgot" href="javascript:void(0)" onclick="openChangePasswordModal()">Forgot password</a>
@@ -819,12 +811,10 @@ $conn->close();
 <div id="changePasswordModal" class="modal">
     <div class="modal-content recovery">
         <br>
-        
-        <!-- Step 1: Email & Verification Code -->
-        <div id="recovery-step-1" class="recovery-step active">
-            <h2 align="left">Password Recovery</h2>
-            <p class="modal-sub">Enter your email to get OTP.</p>
-            <br>
+        <h2 align="left">Password Recovery</h2>
+        <p class="modal-sub">Enter your email to get OTP.</p>
+        <br>
+        <form id="changePasswordForm" method="POST" action="Login.php">
             <div class="input-group inline-action float">
                 <div class="flex-1">
                     <input type="email" id="change-email" name="change_email" placeholder=" " required value="<?= htmlspecialchars($old['change_email']) ?>">
@@ -837,47 +827,27 @@ $conn->close();
                 <label for="verification-code">Verification Code</label>
                 <div class="field-validation" id="verification-code-status"></div>
             </div>
-            <div class="modal-buttons row">
-                <button type="button" class="btn primary" id="verifyCodeBtn">Next</button>
-                <button type="button" class="btn outline" onclick="closeChangePasswordModal()">Cancel</button>
-            </div>
-        </div>
-
-        <!-- Step 2: Create New Password -->
-        <div id="recovery-step-2" class="recovery-step">
-            <h2 align="left">Create New Password</h2>
-            <p class="modal-sub">Create a new, strong password that you don't use for other websites</p>
-            <br>
-            <form id="changePasswordForm" method="POST" action="Login.php">
-                <input type="hidden" id="final-email" name="change_email" value="">
-                <input type="hidden" id="final-code" name="verification_code" value="">
-                
+            <!-- New Password fields always visible; server validates OTP on submit -->
+            <div id="newPasswordFields">
                 <div class="input-group float">
-                    <input type="password" id="new-password" name="new_password" placeholder=" " required>
+                    <input type="password" id="new-password" name="new_password" placeholder=" " disabled>
                     <label for="new-password">Password</label>
                     <div class="field-validation" id="recovery-password-error"></div>
                 </div>
                 <div class="input-group float">
-                    <input type="password" id="confirm-password" name="confirm_password" placeholder=" " required>
+                    <input type="password" id="confirm-password" name="confirm_password" placeholder=" " disabled>
                     <label for="confirm-password">Confirm Password</label>
                     <div class="field-validation" id="recovery-confirm-error"></div>
                 </div>
-                
-                <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px; margin-bottom: 15px;">
-                    <input type="checkbox" id="show-recovery-password" style="width: 16px; height: 16px; margin: 0; cursor: pointer;">
-                    <label for="show-recovery-password" style="margin: 0; cursor: pointer; font-size: 13px; user-select: none;">Show Password</label>
-                </div>
-                
-                <?php if (!empty($changePasswordError)) { ?>    
-                    <p style="color: red; margin-top: 10px;"><?= $changePasswordError ?></p>
-                <?php } ?>
-                
-                <div class="modal-buttons row">
-                    <button type="submit" class="btn primary">Reset Password</button>
-                    <button type="button" class="btn outline" onclick="closeChangePasswordModal()">Cancel</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <?php if (!empty($changePasswordError)) { ?>    
+                <p style="color: red; margin-top: 10px;"><?= $changePasswordError ?></p>
+            <?php } ?>
+            <div class="modal-buttons row">
+                <button type="submit" class="btn primary">Reset</button>
+                <button type="button" class="btn outline" onclick="closeChangePasswordModal()">Cancel</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1203,28 +1173,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function validateRecoveryFields(showConfirmErrors = false) {
         let ok = true;
         if (np && !np.disabled) {
-            const npVal = np.value || '';
-            // Hide validation message if field is empty
-            if (npVal.length === 0) {
-                npErr && (npErr.textContent = '');
-            } else {
-                const res = validatePasswordRules(npVal);
-                npErr && (npErr.textContent = buildPasswordErrorText(res));
-                if (!res.ok) ok = false;
-            }
+            const res = validatePasswordRules(np.value || '');
+            npErr && (npErr.textContent = buildPasswordErrorText(res));
+            if (!res.ok) ok = false;
         }
         if (cp && np && !cp.disabled) {
             const cpVal = cp.value || '';
-            const npVal = np.value || '';
-            // Hide validation message if field is empty
-            if (cpVal.length === 0) {
-                cpErr && (cpErr.textContent = '');
-            } else {
-                const match = cpVal === npVal;
-                const shouldShow = showConfirmErrors || cpVal.length > 0;
-                if (cpErr) cpErr.textContent = shouldShow && !match ? 'Passwords do not match' : '';
-                if (!match) ok = false;
-            }
+            const match = cpVal === (np.value || '');
+            const shouldShow = showConfirmErrors || cpVal.length > 0;
+            if (cpErr) cpErr.textContent = shouldShow && !match ? 'Passwords do not match' : '';
+            if (!match) ok = false;
         }
         return ok;
     }
@@ -1259,35 +1217,18 @@ function openChangePasswordModal() {
     const modal = document.getElementById('changePasswordModal');
     if (!modal) return;
     
-    // Reset to step 1
-    showRecoveryStep(1);
+    const np = document.getElementById('newPasswordFields');
+    if (np) np.style.display = 'block';
     
-    // Clear all fields
-    const emailField = document.getElementById('change-email');
-    const codeField = document.getElementById('verification-code');
-    const newPassField = document.getElementById('new-password');
-    const confirmPassField = document.getElementById('confirm-password');
-    if (emailField) emailField.value = '';
-    if (codeField) codeField.value = '';
-    if (newPassField) newPassField.value = '';
-    if (confirmPassField) confirmPassField.value = '';
+    const newPasswordField = document.getElementById('new-password');
+    const confirmPasswordField = document.getElementById('confirm-password');
+    if (newPasswordField) newPasswordField.disabled = true;
+    if (confirmPasswordField) confirmPasswordField.disabled = true;
     
     document.body.classList.add('modal-open');
     modal.style.display = 'flex';
     requestAnimationFrame(() => {
         modal.classList.add('show');
-    });
-}
-
-function showRecoveryStep(stepNumber) {
-    const steps = document.querySelectorAll('.recovery-step');
-    steps.forEach((step, index) => {
-        step.classList.remove('active', 'slide-out-left', 'slide-in-right');
-        if (index + 1 === stepNumber) {
-            setTimeout(() => {
-                step.classList.add('active', 'slide-in-right');
-            }, 50);
-        }
     });
 }
 
@@ -1320,120 +1261,53 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // Manual verification with Next button
+    // Live verify of OTP code to enable password fields only when correct
     const vcodeInput = document.getElementById('verification-code');
     const vcodeStatus = document.getElementById('verification-code-status');
-    const verifyCodeBtn = document.getElementById('verifyCodeBtn');
-    let verifiedEmail = '';
-    let verifiedCode = '';
-    
-    // Clear validation message when typing
+    const npField = document.getElementById('new-password');
+    const cpField = document.getElementById('confirm-password');
+    let vTimer = null;
+    function setRecoveryEnabled(enabled) {
+        if (npField) npField.disabled = !enabled;
+        if (cpField) cpField.disabled = !enabled;
+    }
+    setRecoveryEnabled(false);
     if (vcodeInput) {
         vcodeInput.addEventListener('input', function(){
-            vcodeStatus && (vcodeStatus.textContent = '');
-        });
-    }
-    
-    // Handle Next button click
-    if (verifyCodeBtn) {
-        verifyCodeBtn.addEventListener('click', function(){
-            const email = document.getElementById('change-email').value;
-            const code = vcodeInput.value.trim();
-            
-            // Validation
-            if (!email) {
-                vcodeStatus && (vcodeStatus.textContent = 'Please enter your email');
-                vcodeStatus && (vcodeStatus.style.color = '#ff4444');
-                return;
-            }
-            
-            if (!code) {
-                vcodeStatus && (vcodeStatus.textContent = 'Please enter verification code');
-                vcodeStatus && (vcodeStatus.style.color = '#ff4444');
-                return;
-            }
-            
-            // Disable button while verifying
-            verifyCodeBtn.disabled = true;
-            verifyCodeBtn.textContent = 'Verifying...';
-            
-            // Verify code via AJAX
-            const params = new URLSearchParams();
-            params.append('ajax', 'verify_code');
-            params.append('email', email);
-            params.append('code', code);
-            
-            fetch('Login.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
-              .then(r => r.json())
-              .then(j => {
-                if (j.ok) {
-                    // Store verified credentials
-                    verifiedEmail = email;
-                    verifiedCode = code;
-                    
-                    // Transfer verified credentials to hidden fields
-                    const finalEmail = document.getElementById('final-email');
-                    const finalCode = document.getElementById('final-code');
-                    if (finalEmail) finalEmail.value = verifiedEmail;
-                    if (finalCode) finalCode.value = verifiedCode;
-                    
-                    // Clear any error message
+            // debounce
+            if (vTimer) clearTimeout(vTimer);
+            vTimer = setTimeout(() => {
+                const email = document.getElementById('change-email').value;
+                const code = vcodeInput.value.trim();
+                if (!email || !code) {
                     vcodeStatus && (vcodeStatus.textContent = '');
-                    
-                    // Transition to step 2 (Create New Password)
-                    setTimeout(() => {
-                        showRecoveryStep(2);
-                        // Re-enable button for if user goes back
-                        verifyCodeBtn.disabled = false;
-                        verifyCodeBtn.textContent = 'Next';
-                    }, 300);
-                } else {
-                    // Show error message
-                    vcodeStatus && (vcodeStatus.textContent = j.message || 'Invalid or expired verification code');
-                    vcodeStatus && (vcodeStatus.style.color = '#ff4444');
-                    verifyCodeBtn.disabled = false;
-                    verifyCodeBtn.textContent = 'Next';
+                    setRecoveryEnabled(false);
+                    return;
                 }
-              })
-              .catch(() => {
-                vcodeStatus && (vcodeStatus.textContent = 'Network error. Please try again.');
-                vcodeStatus && (vcodeStatus.style.color = '#ff4444');
-                verifyCodeBtn.disabled = false;
-                verifyCodeBtn.textContent = 'Next';
-              });
-        });
-    }
-    
-    // Show password toggle for recovery
-    const showRecoveryPass = document.getElementById('show-recovery-password');
-    if (showRecoveryPass) {
-        showRecoveryPass.addEventListener('change', function() {
-            const newPass = document.getElementById('new-password');
-            const confirmPass = document.getElementById('confirm-password');
-            const type = this.checked ? 'text' : 'password';
-            if (newPass) newPass.type = type;
-            if (confirmPass) confirmPass.type = type;
+                const params = new URLSearchParams();
+                params.append('ajax', 'verify_code');
+                params.append('email', email);
+                params.append('code', code);
+                fetch('Login.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
+                  .then(r => r.json())
+                  .then(j => {
+                    if (j.ok) {
+                        // No success text; just enable the fields silently
+                        vcodeStatus && (vcodeStatus.textContent = '');
+                        setRecoveryEnabled(true);
+                    } else {
+                        vcodeStatus && (vcodeStatus.textContent = j.message || 'Invalid or expired code');
+                        setRecoveryEnabled(false);
+                    }
+                  })
+                  .catch(() => {
+                    vcodeStatus && (vcodeStatus.textContent = 'Network error.');
+                    setRecoveryEnabled(false);
+                  });
+            }, 350);
         });
     }
 });
-
-// Toggle password visibility with eye icon
-function togglePassword(fieldId) {
-    const passwordField = document.getElementById(fieldId);
-    const toggle = event.currentTarget;
-    const eyeOpen = toggle.querySelectorAll('.eye-open');
-    const eyeClosed = toggle.querySelectorAll('.eye-closed');
-    
-    if (passwordField.type === 'password') {
-        passwordField.type = 'text';
-        eyeOpen.forEach(el => el.style.display = 'none');
-        eyeClosed.forEach(el => el.style.display = 'block');
-    } else {
-        passwordField.type = 'password';
-        eyeOpen.forEach(el => el.style.display = 'block');
-        eyeClosed.forEach(el => el.style.display = 'none');
-    }
-}
 
 // Smooth AJAX Signup
 var signupForm = document.getElementById('signupForm');
@@ -1597,8 +1471,6 @@ function closeChangePasswordModal() {
     modal.classList.remove('show');
     setTimeout(() => {
         modal.style.display = 'none';
-        // Reset to step 1 after closing
-        showRecoveryStep(1);
     }, 300);
 }
 
