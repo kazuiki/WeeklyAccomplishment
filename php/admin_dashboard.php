@@ -195,6 +195,22 @@ $stats = $stats_result->fetch_assoc();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Weekly Accomplishment System</title>
     <style>
+        :root {
+            --primary-dark: #2C5E8F;
+            --primary-main: #5A9BD5;
+            --primary-light: #E8F2FC;
+            --accent-amber: #F0B323;
+            --accent-success: #28a745;
+            --accent-warning: #ffc107;
+            --accent-danger: #dc3545;
+            --neutral-dark: #212529;
+            --neutral-gray: #6c757d;
+            --neutral-light: #f8f9fa;
+            --neutral-white: #ffffff;
+            --border-color: #dee2e6;
+            --shadow-color: rgba(44, 94, 143, 0.15);
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -203,15 +219,15 @@ $stats = $stats_result->fetch_assoc();
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fa;
+            background: linear-gradient(135deg, var(--neutral-light) 0%, #ffffff 100%);
             min-height: 100vh;
         }
         
         .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(145deg, #2C5E8F 0%, #1e4a70 100%);
             color: white;
             padding: 15px 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 20px rgba(44, 94, 143, 0.15);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -349,7 +365,7 @@ $stats = $stats_result->fetch_assoc();
         .filter-group input:focus,
         .filter-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #5A9BD5;
         }
         
         .filter-actions {
@@ -370,13 +386,13 @@ $stats = $stats_result->fetch_assoc();
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
             color: white;
         }
         
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 15px rgba(44, 94, 143, 0.4);
         }
         
         .btn-secondary {
@@ -480,14 +496,14 @@ $stats = $stats_result->fetch_assoc();
         
         .pagination-btn:hover {
             background: #f8f9fa;
-            border-color: #667eea;
-            color: #667eea;
+            border-color: #5A9BD5;
+            color: #5A9BD5;
         }
         
         .pagination-btn.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
             color: white;
-            border-color: #667eea;
+            border-color: #5A9BD5;
         }
         
         .pagination-btn.disabled {
@@ -685,7 +701,7 @@ $stats = $stats_result->fetch_assoc();
                                 <tr>
                                     <td><?php echo date('M d, Y', strtotime($row['date_record'])); ?></td>
                                     <td>
-                                        <a href="admin_student_detail.php?id=<?php echo $row['user_id']; ?>" style="color: #667eea; text-decoration: none; font-weight: 600;">
+                                        <a href="admin_student_detail.php?id=<?php echo $row['user_id']; ?>" style="color: #5A9BD5; text-decoration: none; font-weight: 600;">
                                             <?php echo htmlspecialchars($row['username']); ?>
                                         </a>
                                     </td>
