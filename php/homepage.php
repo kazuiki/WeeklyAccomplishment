@@ -15,7 +15,7 @@ $initialWeek = date('W');
 $initialYear = date('Y');
 $initialRangeStart = null; // used later for JS range formatting
 try {
-    $uid = $_SESSION['user_id'] ?? null;
+    $uid = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
     if ($uid) {
         $uStmt = $conn->prepare("SELECT is_new, created_at FROM users WHERE user_id = ? LIMIT 1");
         if ($uStmt) {
@@ -49,15 +49,121 @@ try {
     // swallow errors and fallback to current week
 }
 
-// ---------- AJAX: load_today / save_form ----------
+// ---------- AJAX: load_today / load_by_date / save_form ----------
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
     header('Content-Type: application/json; charset=utf-8');
-    $response = ["status" => "error", "message" => ""];
+    $response = array("status" => "error", "message" => "");
 
     $user_id = $_SESSION["user_id"];
     $today = date("Y-m-d");
 
-    if ($_POST["ajax"] === "load_today") {
+    // Load a specific date's accomplishment for the logged-in user
+    if ($_POST["ajax"] === "load_by_date") {
+        try {
+            $date_record = isset($_POST['date_record']) ? trim($_POST['date_record']) : $today;
+            // basic YYYY-MM-DD validation
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_record)) {
+                $date_record = $today;
+            }
+
+            $sql = "SELECT time_in, time_out, task_completed
+                    FROM weekly_accomplishments
+                    WHERE users_user_id = ? AND DATE(date_record) = ?
+                    LIMIT 1";
+
+            if ($stmt = $conn->prepare($sql)) {
+                $stmt->bind_param('is', $user_id, $date_record);
+                $stmt->execute();
+                $stmt->bind_result($time_in, $time_out, $task_completed);
+                $row = array();
+                $exists = false;
+                if ($stmt->fetch()) {
+                    $exists = true;
+                    $row = array(
+                        'time_in' => $time_in,
+                        'time_out' => $time_out,
+                        'task_completed' => $task_completed
+                    );
+                }
+                $stmt->close();
+                $response["status"] = "success";
+                $response["data"] = $row;
+                $response["date_record"] = $date_record;
+                $response["exists"] = $exists;
+            } else {
+                throw new Exception("DB prepare failed");
+            }
+        } catch (Exception $ex) {
+            $response["status"] = "error";
+            $response["message"] = "Failed to load record: " . $ex->getMessage();
+        }
+        echo json_encode($response);
+        exit();
+    }
+
+    // Load official_time for a specific date (find the week that contains this date)
+    if ($_POST["ajax"] === "load_official_by_date") {
+        try {
+            $official_date = isset($_POST['official_date']) ? trim($_POST['official_date']) : $today;
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $official_date)) {
+                $official_date = $today;
+            }
+
+            // Compute the week (Monday-Saturday) that contains this date
+            $dateDt = new DateTime($official_date, new DateTimeZone('Asia/Manila'));
+            $dayOfWeek = $dateDt->format('N'); // 1=Mon, 7=Sun
+            
+            // Find Monday of this week
+            if ($dayOfWeek == 7) {
+                // Sunday - go to next Monday
+                $mondayDt = clone $dateDt;
+                $mondayDt->modify('+1 day');
+            } else {
+                $mondayDt = clone $dateDt;
+                $diff = $dayOfWeek - 1; // days since Monday
+                if ($diff > 0) {
+                    $mondayDt->modify("-{$diff} days");
+                }
+            }
+            
+            // Saturday is Monday + 5 days
+            $saturdayDt = clone $mondayDt;
+            $saturdayDt->modify('+5 days');
+            
+            $weekStart = $mondayDt->format('Y-m-d');
+            $weekEnd = $saturdayDt->format('Y-m-d');
+
+            // Query official_time where created_at falls within this week
+            $sql = "SELECT day_date, day_time
+                    FROM official_time
+                    WHERE users_user_id = ? AND DATE(created_at) BETWEEN ? AND ?
+                    ORDER BY official_id ASC";
+
+            $official_data = array();
+            if ($stmt = $conn->prepare($sql)) {
+                $stmt->bind_param('iss', $user_id, $weekStart, $weekEnd);
+                $stmt->execute();
+                $stmt->bind_result($day_date, $day_time);
+                while ($stmt->fetch()) {
+                    $dayKey = strtolower(trim($day_date));
+                    $official_data[$dayKey] = $day_time;
+                }
+                $stmt->close();
+            }
+
+            $response["status"] = "success";
+            $response["data"] = $official_data;
+            $response["official_date"] = $official_date;
+            $response["week_start"] = $weekStart;
+            $response["week_end"] = $weekEnd;
+            $response["exists"] = count($official_data) > 0;
+        } catch (Exception $ex) {
+            $response["status"] = "error";
+            $response["message"] = "Failed to load official times: " . $ex->getMessage();
+        }
+        echo json_encode($response);
+        exit();
+    }    if ($_POST["ajax"] === "load_today") {
         // Get selected week from POST
         $selectedWeek = isset($_POST["week"]) ? intval($_POST["week"]) : date('W');
         $selectedYear = isset($_POST["year"]) ? intval($_POST["year"]) : date('Y');
@@ -77,10 +183,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
         if ($stmt = $conn->prepare($sql)) {
             $stmt->bind_param("iii", $user_id, $selectedWeek, $selectedYear);
             $stmt->execute();
-            $result = $stmt->get_result();
+            $stmt->bind_result($id, $user_id_col, $week_col, $year_col, $task_completed, $time_in, $time_out, $created_at, $updated_at);
            
             $response["status"] = "success";
-            $row = $result->fetch_assoc() ?: [];
+            if ($stmt->fetch()) {
+                $row = array(
+                    'id' => $id,
+                    'user_id' => $user_id_col,
+                    'week' => $week_col,
+                    'year' => $year_col,
+                    'task_completed' => $task_completed,
+                    'time_in' => $time_in,
+                    'time_out' => $time_out,
+                    'created_at' => $created_at,
+                    'updated_at' => $updated_at
+                );
+            } else {
+                $row = array();
+            }
            
             // Load official times for selected week
             // Compute Monday..Saturday date range for the selected ISO week so
@@ -108,12 +228,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
             if ($otStmt = $conn->prepare($officialSql)) {
                 $otStmt->bind_param("issss", $user_id, $startDate, $endDate, $startDate, $endDate);
                 $otStmt->execute();
-                $otResult = $otStmt->get_result();
+                $otStmt->bind_result($official_id, $day_date_real, $day_date, $day_time, $created_at);
 
-                while ($otRow = $otResult->fetch_assoc()) {
+                while ($otStmt->fetch()) {
                     // Prefer the real date column when available
-                    $rawDate = $otRow['day_date_real'];
-                    $rawText = $otRow['day_date'];
+                    $rawDate = $day_date_real;
+                    $rawText = $day_date;
                     if (!empty($rawDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
                         $wk = strtolower(date('D', strtotime($rawDate))); // Mon -> mon
                         $day = $wk;
@@ -125,8 +245,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                     // normalize to expected keys and set response fields
                     if (!empty($day)) {
                         $rowKey = "official_" . $day;
-                        $row[$rowKey] = $otRow['day_time'];
-                        $row[$rowKey . "_id"] = $otRow['official_id'];
+                        $row[$rowKey] = $day_time;
+                        $row[$rowKey . "_id"] = $official_id;
                     }
                 }
                 $otStmt->close();
@@ -145,49 +265,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
         exit();
     }
 
-    // AJAX: load a specific record by date (YYYY-MM-DD) so modal can edit past dates
-    if ($_POST["ajax"] === "load_by_date") {
-        $requestedDate = trim((string)($_POST['date'] ?? ''));
-        // basic validation YYYY-MM-DD
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $requestedDate)) {
-            $response['status'] = 'error';
-            $response['message'] = 'Invalid date';
-            echo json_encode($response);
-            exit();
-        }
-
-        $sql = "SELECT time_in, time_out, task_completed, date_record FROM weekly_accomplishments WHERE users_user_id = ? AND DATE(date_record) = ? LIMIT 1";
-        if ($stmt = $conn->prepare($sql)) {
-            $stmt->bind_param('is', $user_id, $requestedDate);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            $row = $res->fetch_assoc() ?: [];
-
-            // Determine whether the requested date lies in the current ISO week/year
-            $dt = DateTime::createFromFormat('Y-m-d', $requestedDate);
-            $weekNum = $dt ? (int)$dt->format('W') : null;
-            $yearNum = $dt ? (int)$dt->format('Y') : null;
-            $currentWeek = date('W');
-            $currentYear = date('Y');
-            $isCurrentWeek = ($weekNum == $currentWeek && $yearNum == $currentYear);
-
-            $response['status'] = 'success';
-            $response['data'] = $row;
-            $response['is_current_week'] = $isCurrentWeek;
-            $response['selected_date'] = $requestedDate;
-            $stmt->close();
-        }
-
-        echo json_encode($response);
-        exit();
-    }
-
     if ($_POST["ajax"] === "save_form") {
         try {
             $conn->begin_transaction();
            
             $selectedWeek = isset($_POST["week"]) ? intval($_POST["week"]) : date('W');
             $selectedYear = isset($_POST["year"]) ? intval($_POST["year"]) : date('Y');
+            // Use selected date if provided (for daily accomplishment save)
+            $selectedDate = isset($_POST['date_record']) ? trim($_POST['date_record']) : $today;
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)) {
+                $selectedDate = $today;
+            }
            
             // Check if this is the current week (for edit permissions)
             $currentWeek = date('W');
@@ -197,13 +285,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
             // DEBUG: Log what we received
             error_log("DEBUG - Received data:");
             error_log("Week: $selectedWeek, Year: $selectedYear");
-            error_log("Time In: " . ($_POST['time_in'] ?? 'NOT SET'));
-            error_log("Time Out: " . ($_POST['time_out'] ?? 'NOT SET'));
-            error_log("Task: " . ($_POST['task_completed'] ?? 'NOT SET'));
+            error_log("Time In: " . (isset($_POST['time_in']) ? $_POST['time_in'] : 'NOT SET'));
+            error_log("Time Out: " . (isset($_POST['time_out']) ? $_POST['time_out'] : 'NOT SET'));
+                error_log("Time Out Calc: " . (isset($_POST['time_out_calc']) ? $_POST['time_out_calc'] : 'NOT SET'));
+            error_log("Task: " . (isset($_POST['task_completed']) ? $_POST['task_completed'] : 'NOT SET'));
            
             foreach (['mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as $day) {
                 $key = "official_" . $day;
-                error_log("$key: " . ($_POST[$key] ?? 'NOT SET'));
+                error_log("$key: " . (isset($_POST[$key]) ? $_POST[$key] : 'NOT SET'));
             }
 
             // Optional server-side validation of Fill Out Form times (AM for time_in, PM for time_out)
@@ -247,25 +336,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
 
             // Save weekly accomplishment first (only if form provided time/task fields)
             $user_id = $_SESSION["user_id"];
-            // Allow saving to a specific date if provided (selected_date in YYYY-MM-DD)
-            $targetDate = date('Y-m-d');
-            if (!empty($_POST['selected_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['selected_date'])) {
-                $targetDate = $_POST['selected_date'];
-            }
 
             if (isset($_POST['time_in']) || isset($_POST['time_out']) || isset($_POST['task_completed'])) {
-                // First check if entry exists for target date
+                // First check if entry exists for today
                 $check_sql = "SELECT id FROM weekly_accomplishments
                              WHERE users_user_id = ?
                              AND DATE(date_record) = ?";
-
+           
                 $check_stmt = $conn->prepare($check_sql);
-                $check_stmt->bind_param("is", $user_id, $targetDate);
+                $check_stmt->bind_param("is", $user_id, $selectedDate);
                 $check_stmt->execute();
-                $result = $check_stmt->get_result();
-
-                if ($result->num_rows > 0) {
-                    // Update existing record for target date
+                $check_stmt->bind_result($existing_id);
+                $exists = $check_stmt->fetch();
+                $check_stmt->close();
+           
+                if ($exists) {
+                    // Update existing record
                     $update_sql = "UPDATE weekly_accomplishments
                                  SET time_in = ?,
                                      time_out = ?,
@@ -276,6 +362,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                                      last_updated_at = NOW()
                                  WHERE users_user_id = ?
                                  AND DATE(date_record) = ?";
+               
+                    // Prefer the calculated capped time-out for duration calculations,
+                    // but still save the user-entered time_out into the DB so UI reflects what user typed.
+                    $time_out_for_calc = isset($_POST['time_out_calc']) && $_POST['time_out_calc'] !== '' ? $_POST['time_out_calc'] : (isset($_POST['time_out']) ? $_POST['time_out'] : null);
 
                     $stmt = $conn->prepare($update_sql);
                     $stmt->bind_param("sssssssssss",
@@ -283,16 +373,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                         $_POST['time_out'],
                         $_POST['task_completed'],
                         $_POST['time_in'],
-                        $_POST['time_out'],
+                        $time_out_for_calc,
                         $_POST['time_in'],
-                        $_POST['time_out'],
+                        $time_out_for_calc,
                         $_POST['time_in'],
-                        $_POST['time_out'],
+                        $time_out_for_calc,
                         $user_id,
-                        $targetDate
+                        $selectedDate
                     );
                 } else {
-                    // Insert new record for the selected/target date
+                    // Insert new record for today only
                     $insert_sql = "INSERT INTO weekly_accomplishments
                                   (users_user_id, date_record, time_in, time_out, task_completed,
                                    total_hours, total, grand_total, last_updated_at)
@@ -301,35 +391,102 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                                           TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
                                           TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
                                           NOW())";
+               
+                    $time_out_for_calc = isset($_POST['time_out_calc']) && $_POST['time_out_calc'] !== '' ? $_POST['time_out_calc'] : (isset($_POST['time_out']) ? $_POST['time_out'] : null);
 
                     $stmt = $conn->prepare($insert_sql);
-                    // Bind: user_id, date_record, time_in, time_out, task, then (date,time_in,date,time_out)x3
-                    $stmt->bind_param("isssssssssssssss",
+                    $stmt->bind_param("issssssssssssssss",
                         $user_id,
-                        $targetDate,
+                        $selectedDate,
                         $_POST['time_in'],
                         $_POST['time_out'],
                         $_POST['task_completed'],
-                        $targetDate,
-                        $_POST['time_in'],
-                        $targetDate,
-                        $_POST['time_out'],
-                        $targetDate,
-                        $_POST['time_in'],
-                        $targetDate,
-                        $_POST['time_out']
+                        $selectedDate, $_POST['time_in'], $selectedDate, $time_out_for_calc,
+                        $selectedDate, $_POST['time_in'], $selectedDate, $time_out_for_calc,
+                        $selectedDate, $_POST['time_in'], $selectedDate, $time_out_for_calc
                     );
                 }
-
+           
                 if (!$stmt->execute()) {
                     throw new Exception("Weekly accomplishment error: " . $stmt->error);
                 }
                 $stmt->close();
             }
            
+            // SAVE OFFICIAL TIMES - use selected date from schedule modal if provided
+            // Insert per WEEK (Mon-Sat created on the same date = Monday of the week)
+            $official_date_select = isset($_POST['official_date_select']) ? trim($_POST['official_date_select']) : null;
+            
+            if ($official_date_select && preg_match('/^\d{4}-\d{2}-\d{2}$/', $official_date_select)) {
+                // Compute the Monday of the week containing this date
+                $dateDt = new DateTime($official_date_select, new DateTimeZone('Asia/Manila'));
+                $dayOfWeek = $dateDt->format('N'); // 1=Mon, 7=Sun
+                
+                // Find Monday of this week
+                if ($dayOfWeek == 7) {
+                    // Sunday - go to next Monday
+                    $mondayDt = clone $dateDt;
+                    $mondayDt->modify('+1 day');
+                } else {
+                    $mondayDt = clone $dateDt;
+                    $diff = $dayOfWeek - 1;
+                    if ($diff > 0) {
+                        $mondayDt->modify("-{$diff} days");
+                    }
+                }
+                
+                $saturdayDt = clone $mondayDt;
+                $saturdayDt->modify('+5 days');
+                
+                $weekStart = $mondayDt->format('Y-m-d');
+                $weekEnd = $saturdayDt->format('Y-m-d');
+                
+                // Use Monday as the created_at timestamp for ALL days in this week
+                $weekCreatedAt = $weekStart;
+                
+                $days = array('mon', 'tue', 'wed', 'thu', 'fri', 'sat');
+                
+                foreach ($days as $day) {
+                    $post_key = "official_" . $day;
+                    $official_time = trim((string)(isset($_POST[$post_key]) ? $_POST[$post_key] : ''));
+                    $dayEnum = strtoupper(substr($day, 0, 3)); // MON, TUE, etc.
+
+                    // Check if record exists for this user + day + week (created_at between Mon-Sat)
+                    $check_sql = "SELECT official_id FROM official_time 
+                                  WHERE users_user_id = ? AND day_date = ? 
+                                  AND DATE(created_at) BETWEEN ? AND ?
+                                  LIMIT 1";
+                    $check_stmt = $conn->prepare($check_sql);
+                    $check_stmt->bind_param('isss', $user_id, $dayEnum, $weekStart, $weekEnd);
+                    $check_stmt->execute();
+                    $check_stmt->bind_result($existing_official_id);
+                    $exists_official = $check_stmt->fetch();
+                    $check_stmt->close();
+
+                    if ($exists_official) {
+                        // Update existing official_time record
+                        $update_official_sql = "UPDATE official_time SET day_time = ?, updated_at = NOW()
+                                                WHERE official_id = ?";
+                        $update_stmt = $conn->prepare($update_official_sql);
+                        $update_stmt->bind_param('si', $official_time, $existing_official_id);
+                        $update_stmt->execute();
+                        $update_stmt->close();
+                    } else {
+                        // Insert new record with created_at = Monday of this week
+                        // This ensures all Mon-Sat for this week share the same created_at week marker
+                        $insert_official_sql = "INSERT INTO official_time 
+                                                (users_user_id, day_date, day_time, created_at, updated_at)
+                                                VALUES (?, ?, ?, ?, NOW())";
+                        $insert_stmt = $conn->prepare($insert_official_sql);
+                        $insert_stmt->bind_param('isss', $user_id, $dayEnum, $official_time, $weekCreatedAt);
+                        $insert_stmt->execute();
+                        $insert_stmt->close();
+                    }
+                }
+            } else {
             // SAVE OFFICIAL TIMES - store by actual date for the selected ISO week
             // This avoids updating textual 'Mon'/'Tue' rows (which used created_at as the week marker)
-            $days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+            $days = array('mon', 'tue', 'wed', 'thu', 'fri', 'sat');
             // compute the Monday date for the selected ISO week/year
             try {
                 $mondayDt = new DateTime();
@@ -351,7 +508,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                 // Always attempt to process every weekday. Use null-coalesce so
                 // missing POST keys become empty strings; this ensures Mon..Sat
                 // rows are created (or updated) as needed.
-                $official_time = trim((string)($_POST[$post_key] ?? ''));
+                $official_time = trim((string)(isset($_POST[$post_key]) ? $_POST[$post_key] : ''));
 
                     // compute the exact date (Y-m-d) for this weekday in the selected ISO week
                     $dayDt = clone $mondayDt;
@@ -383,7 +540,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                             $r1 = $s1->get_result();
                             if ($rr = $r1->fetch_assoc()) {
                                 $existingExactId = $rr['official_id'];
-                                $existingExactCreatedAt = $rr['created_at'] ?? null;
+                                $existingExactCreatedAt = isset($rr['created_at']) ? $rr['created_at'] : null;
                             }
                             $s1->close();
                         } else {
@@ -441,7 +598,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                         }
                     }
 
-                    error_log('[official_time SAVE] foundExact=' . ($existingExactId ?? 'none') . ' foundTextual=' . ($existingTextualId ?? 'none'));
+                    error_log('[official_time SAVE] foundExact=' . (isset($existingExactId) ? $existingExactId : 'none') . ' foundTextual=' . (isset($existingTextualId) ? $existingTextualId : 'none'));
 
                     // Decide action based on findings
                     if ($existingExactId !== null) {
@@ -479,12 +636,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                                 error_log('[official_time SAVE] insert execute failed: ' . $insert_stmt->error);
                             }
                             $insert_stmt->close();
-                            error_log("Inserted new official time for $dayDateStr: $official_time (textual/blank existingId=" . ($existingTextualId ?? 'none') . ")");
+                            error_log("Inserted new official time for $dayDateStr: $official_time (textual/blank existingId=" . (isset($existingTextualId) ? $existingTextualId : 'none') . ")");
                         } else {
                             error_log('[official_time SAVE] prepare failed (insert): ' . $conn->error);
                         }
                 }
             }
+            } // end of else block for week-based official_time save
 
             // Add this code to handle company update
             if (isset($_POST['company']) && !empty($_POST['company'])) {
@@ -516,7 +674,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
 
     // AJAX: verify AFK password
     if ($_POST["ajax"] === "verify_afk_password") {
-        $password = $_POST["password"] ?? '';
+        $password = isset($_POST["password"]) ? $_POST["password"] : '';
         $user_id = $_SESSION["user_id"];
        
         if (empty($password)) {
@@ -569,7 +727,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_fn"])) {
 
     if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
         $file_extension = strtolower(pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION));
-        $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+        $allowed_extensions = array('jpg', 'jpeg', 'png', 'gif');
 
         if (in_array($file_extension, $allowed_extensions)) {
             $image_data = file_get_contents($_FILES['profile_picture']['tmp_name']);
@@ -604,9 +762,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_fn"])) {
         $update_student->execute();
         $update_student->close();
     } else {
-        $insert_student = $conn->prepare("INSERT INTO student_info (users_user_id, student_fn, student_mi, student_ln, student_course, student_year, profile_picture, profile_picture_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $insert_student->bind_param("isssssss", $user_id, $student_fn, $student_mi, $student_ln, $student_course, $student_year, $profile_picture, $profile_picture_type);
-        $insert_student->execute();
+        // INSERT with default values for NOT NULL fields
+        $default_profile_picture = '';
+        $default_profile_picture_type = '';
+        
+        if ($profile_picture !== null && $profile_picture_type !== null) {
+            $insert_student = $conn->prepare("INSERT INTO student_info (users_user_id, student_fn, student_mi, student_ln, student_course, student_year, profile_picture, profile_picture_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $insert_student->bind_param("isssssss", $user_id, $student_fn, $student_mi, $student_ln, $student_course, $student_year, $profile_picture, $profile_picture_type);
+        } else {
+            $insert_student = $conn->prepare("INSERT INTO student_info (users_user_id, student_fn, student_mi, student_ln, student_course, student_year, profile_picture, profile_picture_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $insert_student->bind_param("isssssss", $user_id, $student_fn, $student_mi, $student_ln, $student_course, $student_year, $default_profile_picture, $default_profile_picture_type);
+        }
+        
+        if (!$insert_student->execute()) {
+            error_log("Insert failed: " . $insert_student->error);
+            die("Insert failed: " . $insert_student->error);
+        }
         $insert_student->close();
     }
     $check_student->close();
@@ -631,9 +802,13 @@ $existing = null;
 if ($pref = $conn->prepare("SELECT time_in, time_out, task_completed FROM weekly_accomplishments WHERE users_user_id = ? AND date_record = ? LIMIT 1")) {
     $pref->bind_param("is", $user_id, $date_today);
     $pref->execute();
-    $prefRes = $pref->get_result();
-    if ($prefRes && $prefRes->num_rows > 0) {
-        $existing = $prefRes->fetch_assoc();
+    $pref->bind_result($time_in, $time_out, $task_completed);
+    if ($pref->fetch()) {
+        $existing = array(
+            'time_in' => $time_in,
+            'time_out' => $time_out, 
+            'task_completed' => $task_completed
+        );
     }
     $pref->close();
 }
@@ -646,11 +821,10 @@ $username = null;
 if ($email_query = $conn->prepare("SELECT email, username FROM users WHERE user_id = ?")) {
     $email_query->bind_param("i", $user_id);
     $email_query->execute();
-    $email_result = $email_query->get_result();
-    if ($email_result && $email_result->num_rows > 0) {
-        $user_data = $email_result->fetch_assoc();
-        $user_email = $user_data['email'];
-        $username = $user_data['username'];
+    $email_query->bind_result($email, $db_username);
+    if ($email_query->fetch()) {
+        $user_email = $email;
+        $username = $db_username;
     }
     $email_query->close();
 }
@@ -658,17 +832,23 @@ if ($email_query = $conn->prepare("SELECT email, username FROM users WHERE user_
 if ($student_query = $conn->prepare("SELECT student_fn, student_mi, student_ln, student_course, student_year FROM student_info WHERE users_user_id = ?")) {
     $student_query->bind_param("i", $user_id);
     $student_query->execute();
-    $student_result = $student_query->get_result();
-    if ($student_result && $student_result->num_rows > 0) {
-        $user_profile = $student_result->fetch_assoc();
+    $student_query->bind_result($student_fn, $student_mi, $student_ln, $student_course, $student_year);
+    if ($student_query->fetch()) {
+        $user_profile = array(
+            'student_fn' => $student_fn,
+            'student_mi' => $student_mi,
+            'student_ln' => $student_ln,
+            'student_course' => $student_course,
+            'student_year' => $student_year
+        );
     }
     $student_query->close();
 }
 
 // Fetch official times
-$official_times = [
+$official_times = array(
     'MON' => '', 'TUE' => '', 'WED' => '', 'THU' => '', 'FRI' => '', 'SAT' => ''
-];
+);
 
 $current_week = date('W');
 $current_year = date('Y');
@@ -688,9 +868,9 @@ $endDate = $endDt->format('Y-m-d');
 if ($oft = $conn->prepare("SELECT day_date, day_time, created_at FROM official_time WHERE users_user_id = ? AND ((day_date BETWEEN ? AND ?) OR (created_at BETWEEN ? AND ?)) ORDER BY official_id DESC")) {
     $oft->bind_param("issss", $user_id, $startDate, $endDate, $startDate, $endDate);
     $oft->execute();
-    $result = $oft->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $raw = $row['day_date'];
+    $oft->bind_result($day_date, $day_time, $created_at);
+    while ($oft->fetch()) {
+        $raw = $day_date;
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
             $day = strtoupper(date('D', strtotime($raw)));
         } else {
@@ -698,7 +878,7 @@ if ($oft = $conn->prepare("SELECT day_date, day_time, created_at FROM official_t
             $day = strtoupper(substr($raw, 0, 3));
         }
         if (array_key_exists($day, $official_times)) {
-            $official_times[$day] = htmlspecialchars($row['day_time']);
+            $official_times[$day] = htmlspecialchars($day_time);
         }
     }
     $oft->close();
@@ -709,10 +889,9 @@ $company_name = '';
 if ($infoq = $conn->prepare("SELECT company_name FROM student_info WHERE users_user_id = ? LIMIT 1")) {
     $infoq->bind_param("i", $user_id);
     $infoq->execute();
-    $infoRes = $infoq->get_result();
-    if ($infoRes && $infoRes->num_rows > 0) {
-        $row = $infoRes->fetch_assoc();
-        $company_name = $row['company_name'] ?? '';
+    $infoq->bind_result($db_company_name);
+    if ($infoq->fetch()) {
+        $company_name = isset($db_company_name) ? $db_company_name : '';
     }
     $infoq->close();
 }
@@ -723,12 +902,11 @@ $current_picture_type = '';
 if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FROM student_info WHERE users_user_id = ?")) {
     $pic_check->bind_param("i", $user_id);
     $pic_check->execute();
-    $pic_result = $pic_check->get_result();
-    if ($pic_result && $pic_result->num_rows > 0) {
-        $pic_data = $pic_result->fetch_assoc();
-        if (!empty($pic_data['profile_picture'])) {
+    $pic_check->bind_result($profile_picture_data, $profile_picture_type_data);
+    if ($pic_check->fetch()) {
+        if (!empty($profile_picture_data)) {
             $has_profile_picture = true;
-            $current_picture_type = $pic_data['profile_picture_type'];
+            $current_picture_type = $profile_picture_type_data;
         }
     }
     $pic_check->close();
@@ -806,17 +984,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                         ?>
                     </div>
                 </div>
-                <div class="form-group"><label for="student_fn">First Name:</label><input type="text" id="student_fn" name="student_fn" value="<?= htmlspecialchars($user_profile['student_fn'] ?? '') ?>" required></div>
-                <div class="form-group"><label for="student_mi">Middle Initial:</label><input type="text" id="student_mi" name="student_mi" value="<?= htmlspecialchars($user_profile['student_mi'] ?? '') ?>" maxlength="1"></div>
-                <div class="form-group"><label for="student_ln">Last Name:</label><input type="text" id="student_ln" name="student_ln" value="<?= htmlspecialchars($user_profile['student_ln'] ?? '') ?>" required></div>
-                <div class="form-group"><label for="email">Email:</label><input type="email" id="email" name="email" value="<?= htmlspecialchars($user_email ?? '') ?>" required></div>
-                <div class="form-group"><label for="student_course">Course:</label><input type="text" id="student_course" name="student_course" value="<?= htmlspecialchars($user_profile['student_course'] ?? '') ?>" required></div>
+                <div class="form-group"><label for="student_fn">First Name:</label><input type="text" id="student_fn" name="student_fn" value="<?= htmlspecialchars(isset($user_profile['student_fn']) ? $user_profile['student_fn'] : '') ?>" required></div>
+                <div class="form-group"><label for="student_mi">Middle Initial:</label><input type="text" id="student_mi" name="student_mi" value="<?= htmlspecialchars(isset($user_profile['student_mi']) ? $user_profile['student_mi'] : '') ?>" maxlength="1"></div>
+                <div class="form-group"><label for="student_ln">Last Name:</label><input type="text" id="student_ln" name="student_ln" value="<?= htmlspecialchars(isset($user_profile['student_ln']) ? $user_profile['student_ln'] : '') ?>" required></div>
+                <div class="form-group"><label for="email">Email:</label><input type="email" id="email" name="email" value="<?= htmlspecialchars(isset($user_email) ? $user_email : '') ?>" required></div>
+                <div class="form-group"><label for="student_course">Course:</label><input type="text" id="student_course" name="student_course" value="<?= htmlspecialchars(isset($user_profile['student_course']) ? $user_profile['student_course'] : '') ?>" required></div>
                 <div class="form-group"><label for="student_year">Year:</label>
                   <select id="student_year" name="student_year" required>
-                    <option value="1st Year" <?= ($user_profile['student_year'] ?? '') == '1st Year' ? 'selected' : '' ?>>1st Year</option>
-                    <option value="2nd Year" <?= ($user_profile['student_year'] ?? '') == '2nd Year' ? 'selected' : '' ?>>2nd Year</option>
-                    <option value="3rd Year" <?= ($user_profile['student_year'] ?? '') == '3rd Year' ? 'selected' : '' ?>>3rd Year</option>
-                    <option value="4th Year" <?= ($user_profile['student_year'] ?? '') == '4th Year' ? 'selected' : '' ?>>4th Year</option>
+                    <option value="1st Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '1st Year' ? 'selected' : '' ?>>1st Year</option>
+                    <option value="2nd Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '2nd Year' ? 'selected' : '' ?>>2nd Year</option>
+                    <option value="3rd Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '3rd Year' ? 'selected' : '' ?>>3rd Year</option>
+                    <option value="4th Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '4th Year' ? 'selected' : '' ?>>4th Year</option>
                   </select>
                 </div>
                 <div class="modal-buttons">
@@ -852,6 +1030,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 <h2>Scheduling Form</h2>
                 <div id="scheduleModalBody">
                     <div class="form-section">
+                        <div class="section-title">Select Date</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="official-date-select">Date:</label>
+                                <input type="date" id="official-date-select" name="official_date_select" required value="<?= htmlspecialchars($date_today) ?>">
+                                <div id="official-date-status" style="font-size:12px; color:#7f8c8d; margin-top:4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
                         <div class="section-title">Quick Schedule Setup</div>
                         <div class="quick-actions">
                             <button class="quick-action-btn" id="same-all-days">✓ Same schedule all days</button>
@@ -883,7 +1072,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                                     </div>
                                     <div class="time-display" id="<?= $dayKey ?>-display">Not set</div>
                                     <!-- hidden input preserves server field name/ID expected by PHP -->
-                                    <input type="hidden" id="official-<?= $dayKey ?>" name="official_<?= $dayKey ?>" value="<?= htmlspecialchars($official_times[strtoupper($dayKey)] ?? '') ?>">
+                                    <input type="hidden" id="official-<?= $dayKey ?>" name="official_<?= $dayKey ?>" value="<?= htmlspecialchars(isset($official_times[strtoupper($dayKey)]) ? $official_times[strtoupper($dayKey)] : '') ?>">
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -913,15 +1102,15 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     <div class="header-profile-info">
                         <button id="headerFullnameBtn" class="header-fullname-btn" type="button" aria-haspopup="dialog" aria-controls="userProfileModal">
                             <?php
-                                $fn = htmlspecialchars($user_profile['student_fn'] ?? '');
-                                $mi = htmlspecialchars($user_profile['student_mi'] ?? '');
-                                $ln = htmlspecialchars($user_profile['student_ln'] ?? '');
+                                $fn = htmlspecialchars(isset($user_profile['student_fn']) ? $user_profile['student_fn'] : '');
+                                $mi = htmlspecialchars(isset($user_profile['student_mi']) ? $user_profile['student_mi'] : '');
+                                $ln = htmlspecialchars(isset($user_profile['student_ln']) ? $user_profile['student_ln'] : '');
                                 $full = trim($fn . ($mi ? ' ' . $mi : '') . ' ' . $ln);
                                 // Show full name if available, otherwise show username as fallback
-                                echo $full ?: htmlspecialchars($username ?? 'User');
+                                echo $full ? $full : htmlspecialchars(isset($username) ? $username : 'User');
                             ?>
                         </button>
-                        <div class="header-email"><?= htmlspecialchars($user_email ?? $user_profile['student_email'] ?? '') ?></div>
+                        <div class="header-email"><?= htmlspecialchars(isset($user_email) ? $user_email : (isset($user_profile['student_email']) ? $user_profile['student_email'] : '')) ?></div>
                     </div>
                 </div>
       </div>
@@ -958,7 +1147,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                         </div>
                         <div class="profile-info">
                             <h3 class="user-name"><?php
-                                $fullName = trim(($user_profile['student_fn'] ?? '') . ' ' . ($user_profile['student_mi'] ?? '') . ' ' . ($user_profile['student_ln'] ?? ''));
+                                $fullName = trim((isset($user_profile['student_fn']) ? $user_profile['student_fn'] : '') . ' ' . (isset($user_profile['student_mi']) ? $user_profile['student_mi'] : '') . ' ' . (isset($user_profile['student_ln']) ? $user_profile['student_ln'] : ''));
                                 echo htmlspecialchars($fullName ?: ($username ?? 'User'));
                             ?></h3>
                             <p class="user-email"><?= htmlspecialchars($user_email ?? $user_profile['student_email'] ?? '') ?></p>
@@ -1050,9 +1239,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                   if ($uStmt = $conn->prepare($uSql)) {
                       $uStmt->bind_param('i', $uId);
                       $uStmt->execute();
-                      $uRes = $uStmt->get_result();
-                      if ($uRow = $uRes->fetch_assoc()) {
-                          $createdAt = !empty($uRow['created_at']) ? $uRow['created_at'] : null;
+                      $uStmt->bind_result($db_created_at);
+                      if ($uStmt->fetch()) {
+                          $createdAt = !empty($db_created_at) ? $db_created_at : null;
                           if ($createdAt) {
                               try {
                                   $dt = new DateTime($createdAt, new DateTimeZone('Asia/Manila'));
@@ -1081,10 +1270,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                       if ($minStmt = $conn->prepare($minSql)) {
                           $minStmt->bind_param('i', $uId);
                           $minStmt->execute();
-                          $minRes = $minStmt->get_result();
-                          if ($minRow = $minRes->fetch_assoc()) {
-                              if (!empty($minRow['min_date'])) {
-                                  $initialRangeStart = substr($minRow['min_date'], 0, 10);
+                          $minStmt->bind_result($min_date);
+                          if ($minStmt->fetch()) {
+                              if (!empty($min_date)) {
+                                  $initialRangeStart = substr($min_date, 0, 10);
                                   $dtmp = new DateTime($initialRangeStart);
                                   $dtmp->modify('monday this week');
                                   $initialRangeStart = $dtmp->format('Y-m-d');
@@ -1171,22 +1360,27 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       <h2>Fill Out Form</h2>
       <div id="currentDateTime"><?php echo date('l, F j, Y | h:i:s A'); ?></div>
 
-      <form id="accomplishmentForm" method="post" onsubmit="return false;">
+    <form id="accomplishmentForm" method="post" onsubmit="return false;">
+            <!-- hidden field to carry calculated capped time-out so we don't overwrite the visible input -->
+            <input type="hidden" id="time_out_calc" name="time_out_calc" value="">
                 <!-- Official Time and Company moved to Scheduling modal -->
 
                 <!-- Training period fields removed per user request -->
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="record-date">Date:</label>
-                        <input type="date" id="record-date" name="selected_date" value="<?= isset($date_today) ? $date_today : date('Y-m-d') ?>" style="max-width:200px;">
-                        <div style="height:6px;"></div>
+                        <label for="date-record">Date:</label>
+                        <input type="date" id="date-record" name="date_record" required value="<?= htmlspecialchars($date_today) ?>">
+                                <div id="date-record-status" style="font-size:12px; color:#7f8c8d; margin-top:4px;"></div>
                     </div>
-                    <div class="form-group">
-                        <label for="time-in">Time-In:</label>
-                        <input type="time" id="time-in" name="time_in" required value="<?= htmlspecialchars($existing['time_in'] ?? '') ?>">
-                        <div id="time-in-error" style="color: #e74c3c; font-size: 12px; margin-top: 2px; display: none;"></div>
-                    </div>
+                </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="time-in">Time-In:</label>
+            <input type="time" id="time-in" name="time_in" required value="<?= htmlspecialchars($existing['time_in'] ?? '') ?>">
+            <div id="time-in-error" style="color: #e74c3c; font-size: 12px; margin-top: 2px; display: none;"></div>
+          </div>
           <div class="form-group">
             <label for="time-out">Time-Out:</label>
             <input type="time" id="time-out" name="time_out" required value="<?= htmlspecialchars($existing['time_out'] ?? '') ?>">
@@ -1202,14 +1396,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           </div>
         </div>
 
-        
+        <p id="formMessage" style="margin: 8px 0 0 0;"></p>
 
                         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
                             <button type="submit" id="submit-button" class="submit-btn primary-save">Submit</button>
                             <button class="btn cancel-red-outline" onclick="closeFillModal()">Close</button>
                         </div>
       </form>
-      
+      <p id="formMessage"></p>
     </div>
   </div>
 
@@ -1592,16 +1786,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
         const duration = adjustedTout - tin;
 
-        if (duration >= 480) {
-            // set time-out to exactly time-in + 8 hours (mod 24h) so DB TIMESTAMPDIFF(HOUR,...) yields 8
-            const newTout = tin + 480;
-            timeOutEl.value = minutesToTimeString(newTout);
-            // update display to 8:00 if present
-            if (displayEl) {
-                displayEl.textContent = '8:00';
-                displayEl.dataset.duration = String(480);
-                displayEl.dataset.capped = '1';
-            }
+            if (duration >= 480) {
+                // compute time-in + 8 hours (mod 24h) and store in hidden field so we don't overwrite user's visible input
+                const newTout = tin + 480;
+                const calcEl = document.getElementById('time_out_calc');
+                if (calcEl) calcEl.value = minutesToTimeString(newTout);
+                // update display to 8:00 if present
+                if (displayEl) {
+                    displayEl.textContent = '8:00';
+                    displayEl.dataset.duration = String(480);
+                    displayEl.dataset.capped = '1';
+                }
         } else {
             // ensure display shows normalized duration (handles overnight)
             if (displayEl) {
@@ -1609,6 +1804,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 displayEl.dataset.duration = String(duration);
                 displayEl.dataset.capped = '0';
             }
+            // clear any previous calculated hidden value when no cap applies
+            const calcEl2 = document.getElementById('time_out_calc');
+            if (calcEl2) calcEl2.value = '';
         }
     }
 
@@ -1873,18 +2071,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const modal = document.getElementById("fillOutModal");
         if (modal) {
             modal.style.display = "flex";
-            // Set date picker to today's date by default and load that record
             try {
-                const dateInput = document.getElementById('record-date');
-                const today = '<?= $date_today ?>';
-                if (dateInput) {
-                    dateInput.value = today;
-                    // ensure change listener triggers when user picks another date
-                    dateInput.removeEventListener('change', handleRecordDateChange);
-                    dateInput.addEventListener('change', handleRecordDateChange);
-                }
-                loadRecordByDate(today);
-            } catch (err) { console.warn('openFillModal loadRecordByDate error', err); }
+                const dateInput = document.getElementById('date-record');
+                const selectedDate = dateInput && dateInput.value ? dateInput.value : (new Date()).toISOString().slice(0,10);
+                loadRecordForDate(selectedDate);
+            } catch (e) { console.error('Failed to load record for selected date', e); }
            
             // Reset form message
             const msg = document.getElementById("formMessage");
@@ -2029,62 +2220,106 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         .catch(err => console.error("Error loading record:", err));
     }
 
-    // Load a record for a specific date (YYYY-MM-DD) and populate the Fill Out modal
-    function loadRecordByDate(dateStr) {
+    // Load accomplishment for a specific calendar date (YYYY-MM-DD)
+    function loadRecordForDate(dateStr) {
         if (!dateStr) return;
-        const formData = new FormData();
-        formData.append('ajax', 'load_by_date');
-        formData.append('date', dateStr);
+        const fd = new FormData();
+        fd.append('ajax', 'load_by_date');
+        fd.append('date_record', dateStr);
 
         fetch(window.location.pathname, {
-            method: "POST",
-            body: formData
+            method: 'POST',
+            body: fd
         })
         .then(res => res.json())
         .then(data => {
-            if (data.status === 'success') {
-                const timeInValue = data.data.time_in || '';
-                const timeOutValue = data.data.time_out || '';
-                const taskVal = data.data.task_completed || '';
+            if (data && data.status === 'success') {
+                const ti = (data.data && data.data.time_in) ? data.data.time_in : '';
+                const to = (data.data && data.data.time_out) ? data.data.time_out : '';
+                const task = (data.data && data.data.task_completed) ? data.data.task_completed : '';
 
                 const tinEl = document.getElementById('time-in');
                 const toutEl = document.getElementById('time-out');
                 const taskEl = document.getElementById('task');
-                if (tinEl) tinEl.value = timeInValue;
-                if (toutEl) toutEl.value = timeOutValue;
-                if (taskEl) taskEl.value = taskVal;
+                if (tinEl) tinEl.value = ti;
+                if (toutEl) toutEl.value = to;
+                if (taskEl) taskEl.value = task;
 
-                // Update any 12-hour display fields if present
-                const timeInDisplay = document.getElementById('time-in-display');
-                const timeOutDisplay = document.getElementById('time-out-display');
-                if (timeInDisplay && timeInValue) timeInDisplay.value = convert24HourTo12Hour(timeInValue);
-                if (timeOutDisplay && timeOutValue) timeOutDisplay.value = convert24HourTo12Hour(timeOutValue);
+                // Clear any calculated override when loading
+                const calc = document.getElementById('time_out_calc');
+                if (calc) calc.value = '';
 
-                // Disable submit button if not current week and editing rules disallow changes (optional)
-                const submitBtn = document.getElementById('submit-button');
-                if (submitBtn) {
-                    // allow editing if server says it's current week; otherwise keep enabled but server may reject
-                    if (typeof data.is_current_week !== 'undefined' && !data.is_current_week) {
-                        // still allow editing of time/task, but inform user
-                        const msg = document.getElementById('formMessage');
-                        if (msg) { msg.style.color = '#e67e22'; msg.textContent = 'Editing past weeks is allowed; official times may be restricted.'; }
+                // Show existence status
+                const statusEl = document.getElementById('date-record-status');
+                if (statusEl) {
+                    if (data.exists) {
+                        statusEl.style.color = '#2ecc71';
+                        statusEl.textContent = 'Existing entry loaded for this date';
                     } else {
-                        const msg = document.getElementById('formMessage'); if (msg) msg.textContent = '';
+                        statusEl.style.color = '#7f8c8d';
+                        statusEl.textContent = 'No entry yet for this date — you can add one';
                     }
                 }
-            } else {
-                console.warn('No record for date or error:', data.message);
-                // clear fields if none
-                const tinEl = document.getElementById('time-in'); if (tinEl) tinEl.value = '';
-                const toutEl = document.getElementById('time-out'); if (toutEl) toutEl.value = '';
-                const taskEl = document.getElementById('task'); if (taskEl) taskEl.value = '';
             }
-        }).catch(err => console.error('Error loading record by date:', err));
+        })
+        .catch(err => console.error('Error loading by date:', err));
     }
 
-    function handleRecordDateChange(e) {
-        const d = e.target.value;
-        if (d) loadRecordByDate(d);
+    // Load official_time for a specific date (using created_at as date marker)
+    function loadOfficialByDate(dateStr) {
+        if (!dateStr) return;
+        const fd = new FormData();
+        fd.append('ajax', 'load_official_by_date');
+        fd.append('official_date', dateStr);
+
+        fetch(window.location.pathname, {
+            method: 'POST',
+            body: fd
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.status === 'success') {
+                // Clear all official time inputs first
+                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
+                    const amSel = document.getElementById(`official-${day}-am`);
+                    const pmSel = document.getElementById(`official-${day}-pm`);
+                    const hidden = document.getElementById(`official-${day}`);
+                    if (amSel) amSel.value = '';
+                    if (pmSel) pmSel.value = '';
+                    if (hidden) hidden.value = '';
+                    updateDayDisplay(day);
+                });
+
+                // Populate with fetched data
+                if (data.data) {
+                    Object.keys(data.data).forEach(dayKey => {
+                        const rawTime = data.data[dayKey];
+                        const parts = parseOfficialString(rawTime);
+                        const amSel = document.getElementById(`official-${dayKey}-am`);
+                        const pmSel = document.getElementById(`official-${dayKey}-pm`);
+                        const hidden = document.getElementById(`official-${dayKey}`);
+                        
+                        if (amSel) amSel.value = to12HourText(parts.am) || '';
+                        if (pmSel) pmSel.value = to12HourText(parts.pm) || '';
+                        if (hidden) hidden.value = rawTime;
+                        updateDayDisplay(dayKey);
+                    });
+                }
+
+                // Show status
+                const statusEl = document.getElementById('official-date-status');
+                if (statusEl) {
+                    if (data.exists) {
+                        statusEl.style.color = '#2ecc71';
+                        statusEl.textContent = 'Schedule loaded for this date';
+                    } else {
+                        statusEl.style.color = '#7f8c8d';
+                        statusEl.textContent = 'No schedule yet — you can add one';
+                    }
+                }
+            }
+        })
+        .catch(err => console.error('Error loading official times by date:', err));
     }
 
     // Load selected week from dropdown
@@ -2490,6 +2725,26 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             openWeekModal();
         });
 
+        // Load data when date changes in Fill Out form
+        try {
+            const dateInput = document.getElementById('date-record');
+            if (dateInput) {
+                dateInput.addEventListener('change', function() {
+                    if (this.value) loadRecordForDate(this.value);
+                });
+            }
+        } catch (e) { console.warn('date-record change binding failed', e); }
+
+        // Load data when date changes in Schedule modal
+        try {
+            const officialDateInput = document.getElementById('official-date-select');
+            if (officialDateInput) {
+                officialDateInput.addEventListener('change', function() {
+                    if (this.value) loadOfficialByDate(this.value);
+                });
+            }
+        } catch (e) { console.warn('official-date-select change binding failed', e); }
+
         // Schedule button wiring
         const scheduleBtn = document.getElementById('scheduleButton');
         if (scheduleBtn) {
@@ -2581,6 +2836,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 formData.append('week', currentWeekState.week);
                 formData.append('year', currentWeekState.year);
 
+                // Include selected date from schedule modal if present
+                try {
+                    const officialDateInput = document.getElementById('official-date-select');
+                    if (officialDateInput && officialDateInput.value) {
+                        formData.append('official_date_select', officialDateInput.value);
+                    }
+                } catch (e) { /* ignore */ }
+
                 // Read values from AM/PM pickers and set hidden inputs (preserve server field names)
                 ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
                     const am = document.getElementById(`official-${day}-am`);
@@ -2601,6 +2864,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
                 if (timeIn && timeIn.value) formData.append('time_in', timeIn.value);
                 if (timeOut && timeOut.value) formData.append('time_out', timeOut.value);
+                // include calculated capped time-out (if enforced) so server can use it for TIMESTAMPDIFF calculations
+                const calc = document.getElementById('time_out_calc');
+                if (calc && calc.value) formData.append('time_out_calc', calc.value);
                 if (task && task.value) formData.append('task_completed', task.value);
 
                 // Add company data
@@ -2676,15 +2942,18 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 formData.append('ajax', 'save_form');
                 formData.append('week', currentWeekState.week);
                 formData.append('year', currentWeekState.year);
+                // Include selected date for daily record save
+                try {
+                    const dateInput = document.getElementById('date-record');
+                    if (dateInput && dateInput.value) formData.append('date_record', dateInput.value);
+                } catch (e) { /* ignore */ }
                 formData.append('validate_times', '1');
                 formData.append('time_in', document.getElementById('time-in').value);
                 formData.append('time_out', document.getElementById('time-out').value);
+                // include calculated capped time-out if present (preserve visible input for user)
+                const _calc = document.getElementById('time_out_calc');
+                if (_calc && _calc.value) formData.append('time_out_calc', _calc.value);
                 formData.append('task_completed', document.getElementById('task').value);
-                // If user picked a specific date, include it so server saves/updates that date
-                try {
-                    const selDate = document.getElementById('record-date');
-                    if (selDate && selDate.value) formData.append('selected_date', selDate.value);
-                } catch (e) { /* ignore */ }
                
                 // Add official times - MANUALLY (always send for any week)
                 ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
@@ -2818,8 +3087,12 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         if (modal) modal.style.display = 'flex';
         // Ensure schedule selects and listeners are attached and values loaded
         try { attachScheduleListeners(); } catch (e) { console.error('attachScheduleListeners error', e); }
-        // Load today's record (will populate hidden inputs and then selects)
-        try { loadTodayRecord(currentWeekState.week, currentWeekState.year); } catch (e) { console.error('loadTodayRecord error', e); }
+        // Load official times for the selected date (default to today)
+        try {
+            const dateInput = document.getElementById('official-date-select');
+            const selectedDate = dateInput && dateInput.value ? dateInput.value : (new Date()).toISOString().slice(0,10);
+            loadOfficialByDate(selectedDate);
+        } catch (e) { console.error('Failed to load official times for selected date', e); }
     }
 
    
