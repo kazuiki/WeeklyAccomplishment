@@ -921,46 +921,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         <link rel="stylesheet" href="css/homepage.css">
         <!-- Font Awesome for icons in the sidebar -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-                <style>
-                    /* Floating Printable View button */
-                    .floating-print-btn {
-                        position: fixed;
-                        right: 24px;
-                        bottom: 24px;
-                        display: none; /* hidden by default */
-                        align-items: center;
-                        gap: 10px;
-                        padding: 10px 14px;
-                        background: #2c5e8f;
-                        color: #fff;
-                        border: none;
-                        border-radius: 28px;
-                        box-shadow: 0 10px 24px rgba(0,0,0,0.2);
-                        cursor: pointer;
-                        z-index: 5000; /* keep above overlays */
-                        font-weight: 600;
-                        letter-spacing: .2px;
-                        user-select: none;
-                        outline: none;
-                        transition: box-shadow 0.2s ease;
-                        will-change: transform;
-                    }
-                    .floating-print-btn img {
-                        width: 20px;
-                        height: 20px;
-                        object-fit: contain;
-                        filter: brightness(0) invert(1);
-                    }
-                    .floating-print-btn:hover { box-shadow: 0 14px 30px rgba(0,0,0,0.25); }
-                    .floating-print-btn:active { box-shadow: 0 10px 24px rgba(0,0,0,0.2); }
-                    @media (max-width: 600px) {
-                        .floating-print-btn { right: 16px; bottom: 16px; padding: 9px 12px; }
-                    }
-                </style>
+                
 </head>
 <body>
   <div class="main-layout">
-        <!-- Hamburger removed -->
 
     <!-- Edit Profile Modal (placed outside userProfileModal to avoid stacking) -->
     <div class="modal" id="editProfileModal" style="display:none;">
@@ -1123,10 +1087,15 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     </div>
   </div>
 
-    <!-- Floating button (no function yet) -->
-    <button id="printableViewBtn" class="floating-print-btn" type="button" title="Printable View">
-        <img src="img/printer.png" alt="Printer"> Printable View
-    </button>
+    <!-- Floating button group for Weekly and DTR -->
+    <div class="floating-print-btn-group">
+        <button id="weeklyViewBtn" class="floating-print-btn floating-print-btn-left" type="button" title="Weekly Report">
+            Weekly
+        </button>
+        <button id="dtrViewBtn" class="floating-print-btn floating-print-btn-right" type="button" title="Daily Time Record">
+            DTR
+        </button>
+    </div>
 
     <!-- User Profile Modal -->
     <div class="modal" id="userProfileModal" style="display:none;">
@@ -1470,11 +1439,12 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Enhanced button interactions
         const buttons = document.querySelectorAll('button, .btn');
         buttons.forEach(button => {
-            // Skip modal buttons to prevent position changes
+            // Skip modal buttons and floating print buttons to prevent position changes
             if (button.closest('#userProfileModal') ||
                 button.classList.contains('close-button') ||
                 button.classList.contains('profile-edit-overlay') ||
-                button.id === 'printableViewBtn') {
+                button.id === 'weeklyViewBtn' ||
+                button.id === 'dtrViewBtn') {
                 return;
             }
 
@@ -2388,10 +2358,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const container = document.getElementById('viewform-container');
         if (!container) return;
 
-        // Show printable button when viewform is being shown
+       // Show printable button group when viewform is being shown
         try {
-            const pbtn = document.getElementById('printableViewBtn');
-            if (pbtn) pbtn.style.display = 'inline-flex';
+            const btnGroup = document.querySelector('.floating-print-btn-group');
+            if (btnGroup) btnGroup.style.display = 'flex';
         } catch (e) { /* ignore */ }
 
        
@@ -2564,10 +2534,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             return;
         }
 
-        // Hide printable button on analytics/dashboard
+        // Hide printable button group on analytics/dashboard
         try {
-            const pbtn = document.getElementById('printableViewBtn');
-            if (pbtn) pbtn.style.display = 'none';
+            const btnGroup = document.querySelector('.floating-print-btn-group');
+            if (btnGroup) btnGroup.style.display = 'none';
         } catch (e) { /* ignore */ }
 
        
@@ -2798,9 +2768,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             });
         })();
 
-        // Printable View button -> open viewform in new tab with filled approved fields
+        // Weekly View button -> open viewform in new tab with filled approved fields
         (function() {
-            const btn = document.getElementById('printableViewBtn');
+            const btn = document.getElementById('weeklyViewBtn');
             if (!btn) return;
             btn.addEventListener('click', function() {
                 try {
@@ -2819,6 +2789,16 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     const url = `viewform.php?week=${encodeURIComponent(currentWeekState.week)}&year=${encodeURIComponent(currentWeekState.year)}&range=${encodeURIComponent(currentWeekState.range)}&print=1`;
                     window.open(url, '_blank');
                 }
+            });
+        })();
+
+        // DTR button -> open timesheet view (all historical entries newest first) in new tab
+        (function() {
+            const btn = document.getElementById('dtrViewBtn');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                const url = 'timesheet.php';
+                window.open(url, '_blank');
             });
         })();
 
