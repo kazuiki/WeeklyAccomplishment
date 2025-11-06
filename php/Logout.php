@@ -26,6 +26,8 @@ if (isset($_SESSION["user_id"])) {
             $log_logout->execute();
             $log_logout->close();
         }
+        
+        $conn->close();
     }
 }
 

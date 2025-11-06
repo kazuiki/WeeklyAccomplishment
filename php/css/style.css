@@ -1368,7 +1368,7 @@ body.modal-open .auth-card {
 }
 
 .error-notification::before {
-    content: "✕";
+    content: "âœ•";
     width: 24px;
     height: 24px;
     position: relative;
@@ -1410,7 +1410,7 @@ body.modal-open .auth-card {
 }
 
 .success-notification::before {
-  content: "✓";
+  content: "âœ“";
   width: 24px;
   height: 24px;
   position: relative;
