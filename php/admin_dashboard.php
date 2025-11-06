@@ -243,15 +243,15 @@ $stats = $stats_result->fetch_assoc();
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
             min-height: 100vh;
         }
         
         .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(145deg, #2C5E8F 0%, #1e4a70 100%);
             color: white;
             padding: 15px 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 15px rgba(44, 94, 143, 0.2);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -307,13 +307,14 @@ $stats = $stats_result->fetch_assoc();
             background: white;
             border-radius: 10px;
             padding: 14px 16px; /* reduced padding for a smaller card */
-            box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-            transition: transform 0.18s ease, box-shadow 0.18s ease;
+            box-shadow: 0 2px 8px rgba(44, 94, 143, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 4px solid #5A9BD5;
         }
         
         .stat-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+            box-shadow: 0 8px 25px rgba(90, 155, 213, 0.2);
         }
         
         .stat-card .icon {
@@ -339,8 +340,13 @@ $stats = $stats_result->fetch_assoc();
             background: white;
             border-radius: 12px;
             padding: 25px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(44, 94, 143, 0.08);
             margin-bottom: 20px;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 4px 20px rgba(90, 155, 213, 0.15);
         }
         
         .card-header {
@@ -391,7 +397,7 @@ $stats = $stats_result->fetch_assoc();
         .filter-group input:focus,
         .filter-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #5A9BD5;
         }
         
         .filter-actions {
@@ -412,13 +418,13 @@ $stats = $stats_result->fetch_assoc();
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
             color: white;
         }
         
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 20px rgba(90, 155, 213, 0.4);
         }
         
         .btn-secondary {
@@ -480,8 +486,9 @@ $stats = $stats_result->fetch_assoc();
         }
         
         .badge-info {
-            background: #d1ecf1;
-            color: #0c5460;
+            background: #E8F2FC;
+            color: #2C5E8F;
+            border: 1px solid rgba(90, 155, 213, 0.3);
         }
         
         .no-data {
@@ -521,15 +528,15 @@ $stats = $stats_result->fetch_assoc();
         }
         
         .pagination-btn:hover {
-            background: #f8f9fa;
-            border-color: #667eea;
-            color: #667eea;
+            background: #E8F2FC;
+            border-color: #5A9BD5;
+            color: #2C5E8F;
         }
         
         .pagination-btn.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
             color: white;
-            border-color: #667eea;
+            border-color: #5A9BD5;
         }
         
         .pagination-btn.disabled {

@@ -286,7 +286,9 @@ body::before {
 .auth-card .input-group.float input:focus + label,
 .auth-card .input-group.float input:not(:placeholder-shown) + label,
 #changePasswordModal .modal-content .input-group.float input:focus + label,
-#changePasswordModal .modal-content .input-group.float input:not(:placeholder-shown) + label {
+#changePasswordModal .modal-content .input-group.float input:not(:placeholder-shown) + label,
+#adminPasswordModal .modal-content.admin-recovery .input-group.float input:focus + label,
+#adminPasswordModal .modal-content.admin-recovery .input-group.float input:not(:placeholder-shown) + label {
   top: -8px; /* Move higher when focused */
   font-size: 11px;
   color: #ffffff; /* White color when focused */
@@ -300,7 +302,8 @@ body::before {
 }
 
 /* Underlines inside recovery modal too */
-#changePasswordModal .modal-content.recovery .input-group.float input {
+#changePasswordModal .modal-content.recovery .input-group.float input,
+#adminPasswordModal .modal-content.admin-recovery .input-group.float input {
   background: transparent;
   border: none;
   border-bottom: 1.5px solid #000000;
@@ -311,10 +314,13 @@ body::before {
 
 /* Floating label colors for modals: muted when placeholder, normal when lifted */
 #changePasswordModal .modal-content .input-group.float label,
+#adminPasswordModal .modal-content.admin-recovery .input-group.float label,
 #signupModal .modal-content .input-group.float label { color: rgba(0,0,0,0.55); }
 
 #changePasswordModal .modal-content .input-group.float input:focus + label,
 #changePasswordModal .modal-content .input-group.float input:not(:placeholder-shown) + label,
+#adminPasswordModal .modal-content.admin-recovery .input-group.float input:focus + label,
+#adminPasswordModal .modal-content.admin-recovery .input-group.float input:not(:placeholder-shown) + label,
 #signupModal .modal-content .input-group.float input:focus + label,
 #signupModal .modal-content .input-group.float input:not(:placeholder-shown) + label {
   color: #333;
@@ -457,25 +463,29 @@ body.modal-open .auth-card {
 }
 
 /* ===== Change Password (Recovery) modal specific style ===== */
-#changePasswordModal .modal-content.recovery {
+#changePasswordModal .modal-content.recovery,
+#adminPasswordModal .modal-content.admin-recovery {
   max-width: 440px;
   min-height: 400px;
   padding-left: 40px; /* Reduce left padding */
   padding-right: 20px;
 }
-#changePasswordModal .modal-content.recovery h2 {
+#changePasswordModal .modal-content.recovery h2,
+#adminPasswordModal .modal-content.admin-recovery h2 {
   margin-bottom: 6px;
   text-align: left;
   padding-left: 0; /* Remove extra left padding */
 }
-#changePasswordModal .modal-content.recovery .modal-sub {
+#changePasswordModal .modal-content.recovery .modal-sub,
+#adminPasswordModal .modal-content.admin-recovery .modal-sub {
   margin-bottom: 16px;
   font-size: 12px;
   color: #666;
   padding-left: 0; /* Remove extra left padding */
 }
 
-#changePasswordModal .modal-content.recovery .input-group input {
+#changePasswordModal .modal-content.recovery .input-group input,
+#adminPasswordModal .modal-content.admin-recovery .input-group input {
   background: transparent;
   border: none;
   border-bottom: 1.5px solid #000000; /* Black underline */
@@ -485,13 +495,15 @@ body.modal-open .auth-card {
   padding-bottom: 8px; /* Add bottom padding for better spacing */
 }
 
-#changePasswordModal .modal-content.recovery .input-group input:focus {
+#changePasswordModal .modal-content.recovery .input-group input:focus,
+#adminPasswordModal .modal-content.admin-recovery .input-group input:focus {
   outline: none;
   border-bottom-color: #000000; /* Black on focus */
   box-shadow: none; /* remove extra top line */
 }
 
-#changePasswordModal .modal-content.recovery .input-group input:disabled {
+#changePasswordModal .modal-content.recovery .input-group input:disabled,
+#adminPasswordModal .modal-content.admin-recovery .input-group input:disabled {
   background: transparent;
   border: none;
   border-bottom: 1.5px solid #cccccc; /* Gray underline for disabled */
@@ -545,6 +557,16 @@ body.modal-open .auth-card {
   margin: 0 auto;
 }
 
+/* Signup modal buttons - simplified, no glow */
+#signupModal .btn.primary {
+  box-shadow: none;
+  transform: none;
+}
+#signupModal .btn.primary:hover {
+  box-shadow: none;
+  transform: none;
+}
+
 /* ===== Login Status Modals (Success/Error) ===== */
 .modal .status-bar { height: 150px; width: 100%; border-top-left-radius: 8px; border-top-right-radius: 8px; }
 .modal .status-bar.success { background: #3b8f1a; }
@@ -576,8 +598,28 @@ body.modal-open .auth-card {
 }
 
 .modal .modal-buttons.single { display: flex; justify-content: center; padding-top: 25px;}
-.modal .btn.primary.success { background: #3b8f1a; border-color: #3b8f1a; color: #ffffff; }
-.modal .btn.primary.error { background: #8f1a1a; border-color: #8f1a1a; color: #ffffff; }
+.modal .btn.primary.success { 
+  background: #3b8f1a; 
+  border-color: #3b8f1a; 
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
+}
+.modal .btn.primary.success:hover {
+  box-shadow: none;
+  transform: none;
+}
+.modal .btn.primary.error { 
+  background: #8f1a1a; 
+  border-color: #8f1a1a; 
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
+}
+.modal .btn.primary.error:hover {
+  box-shadow: none;
+  transform: none;
+}
 
 /* Match size with recovery/signup */
 #signupSuccessModal .modal-content.status,
@@ -639,9 +681,16 @@ body.modal-open .auth-card {
   font-size: 12px;
   min-width: 70px;
   margin-bottom: 1px; /* Slight adjustment to align with underline */
+  box-shadow: none;
+  transform: none;
+}
+#changePasswordModal .btn.small:hover {
+  box-shadow: none;
+  transform: none;
 }
 
-#changePasswordModal .modal-buttons.row {
+#changePasswordModal .modal-buttons.row,
+#adminPasswordModal .modal-buttons.row {
   display: flex;
   gap: 12px;
   margin-top: 12px;
@@ -652,17 +701,33 @@ body.modal-open .auth-card {
   padding-bottom: 25px;
 }
 
-#changePasswordModal .btn.outline {
+#changePasswordModal .btn.outline,
+#adminPasswordModal .btn.outline {
   background: #fff;
   color: #4b5bfd;
-  border: 1.5px solid #4b5bfd;
+  border: 0.5px solid #bbb;
   flex: 1; /* Make buttons equal width */
+  box-shadow: none;
+  transform: none;
 }
 
-#changePasswordModal .btn.outline:hover { background: #eef1ff; }
+#changePasswordModal .btn.outline:hover,
+#adminPasswordModal .btn.outline:hover { 
+  background: #f5f5f5;
+  box-shadow: none;
+  transform: none;
+}
 
-#changePasswordModal .modal-buttons .btn.primary {
+#changePasswordModal .modal-buttons .btn.primary,
+#adminPasswordModal .modal-buttons .btn.primary {
   flex: 1; /* Make buttons equal width */
+  box-shadow: none;
+  transform: none;
+}
+#changePasswordModal .modal-buttons .btn.primary:hover,
+#adminPasswordModal .modal-buttons .btn.primary:hover {
+  box-shadow: none;
+  transform: none;
 }
 
 /* Ensure modal inputs readable against white bg */
@@ -675,10 +740,36 @@ body.modal-open .auth-card {
   border: 1px solid #ccc;
 }
 
-/* Visible primary action in modals */
-.modal-content .btn { background: #4b5bfd; color: #fff; }
-.modal-content .btn:hover { background: #3f4ee6; }
+/* Visible primary action in modals - simplified, no glow */
+.modal-content .btn { 
+  background: #4b5bfd; 
+  color: #fff; 
+  box-shadow: none;
+  transform: none;
+}
+.modal-content .btn:hover { 
+  background: #3f4ee6;
+  box-shadow: none;
+  transform: none;
+}
 
+/* Show password checkbox row in recovery modals */
+.show-password-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.show-password-row input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+.show-password-row label {
+  cursor: pointer;
+  margin: 0;
+  user-select: none;
+}
 
 /* Add or update this CSS for the success message */
 .success-message {
@@ -710,37 +801,464 @@ body.modal-open .auth-card {
 }
 
 
-@media (max-width: 900px) {
+/* Responsive Design */
+@media (max-width: 1024px) {
   .auth-layout {
     grid-template-columns: 1fr;
     max-width: 100%;
   }
+  
   .hero {
-    min-height: 40vh;
+    min-height: 35vh;
     justify-content: center;
     padding-left: 0;
   }
+  
   .hero-content {
-    padding: 40px 6vw;
+    padding: 32px 5vw;
     max-width: 100%;
     text-align: center;
   }
+  
   .hero-content h1 {
-    font-size: 48px;
+    font-size: 56px;
     white-space: normal;
   }
+  
   .hero-sub {
-    font-size: 16px;
+    font-size: 18px;
   }
+  
+  .hero-logos {
+    justify-content: center;
+  }
+  
   .hero-logos img {
-    height: 60px;
-    width: 60px;
+    height: 70px;
+    width: 70px;
   }
-  .auth-panel { padding: 18px; }
+  
+  .auth-panel {
+    padding: 24px;
+    min-height: auto;
+  }
+  
   .auth-card {
     width: 100%;
-    max-width: 92%;
-    min-height: 60vh;
+    max-width: 500px;
+    min-height: auto;
+    padding: 40px 32px;
+    padding-top: 60px;
+    padding-left: 32px;
+  }
+  
+  .input-group,
+  .btn,
+  .signup-link,
+  .form-msg,
+  .form-row-small {
+    max-width: 100%;
+  }
+  
+  /* Center align form elements on tablet */
+  .auth-card .input-group,
+  .auth-card .btn,
+  .auth-card .signup-link,
+  .auth-card .form-msg,
+  .auth-card .form-row-small {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  
+  .signup-link {
+    margin-right: 0;
+    text-align: center;
+  }
+  
+  /* Admin view adjustments */
+  #adminLoginView {
+    margin-left: 0;
+    padding-left: 32px;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    min-height: 30vh;
+    padding: 24px;
+  }
+  
+  .hero-content {
+    padding: 24px 4vw;
+  }
+  
+  .hero-content h1 {
+    font-size: 40px;
+  }
+  
+  .hero-sub {
+    font-size: 16px;
+    max-width: 100%;
+  }
+  
+  .hero-logos {
+    gap: 16px;
+    margin-top: 16px;
+  }
+  
+  .hero-logos img {
+    height: 56px;
+    width: 56px;
+  }
+  
+  .auth-panel {
+    padding: 16px;
+  }
+  
+  .auth-card {
+    max-width: 100%;
+    padding: 32px 24px;
+    padding-top: 50px;
+    padding-left: 24px;
+  }
+  
+  .auth-head h2 {
+    font-size: 20px;
+  }
+  
+  .auth-head p {
+    font-size: 11px;
+  }
+  
+  .input-group input,
+  .input-group select,
+  .input-group textarea {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+  
+  .btn {
+    font-size: 14px;
+    padding: 11px 12px;
+    height: 44px;
+  }
+  
+  .signup-link {
+    font-size: 13px;
+  }
+  
+  /* Modal adjustments */
+  .modal-content,
+  #changePasswordModal .modal-content.recovery,
+  #signupModal .modal-content.recovery {
+    max-width: 90%;
+    padding: 28px 20px;
+    min-height: auto;
+  }
+  
+  #signupModal .modal-content.recovery {
+    padding-top: 40px;
+  }
+  
+  #signupSuccessModal .modal-content.status,
+  #signupErrorModal .modal-content.status {
+    max-width: 90%;
+    min-height: auto;
+    padding: 0 16px 20px 16px;
+  }
+  
+  .modal-content h2 {
+    font-size: 20px;
+  }
+  
+  .modal .status-title {
+    font-size: 28px;
+  }
+  
+  .modal .status-icon {
+    width: 140px;
+    height: 140px;
+    font-size: 52px;
+    margin: -70px auto 10px auto;
+  }
+  
+  .modal .status-bar {
+    height: 120px;
+  }
+  
+  /* Admin view adjustments */
+  #adminLoginView {
+    margin-left: 0;
+    padding-left: 24px;
+    margin-top: 0;
+  }
+  
+  .admin-icon {
+    font-size: 40px;
+  }
+  
+  #adminLoginView .auth-head h2 {
+    font-size: 20px;
+  }
+  
+  #adminLoginView .auth-head p {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    min-height: 25vh;
+    padding: 16px;
+  }
+  
+  .hero-content {
+    padding: 20px 16px;
+    gap: 12px;
+  }
+  
+  .hero-content h1 {
+    font-size: 32px;
+    line-height: 1.1;
+  }
+  
+  .hero-sub {
+    font-size: 14px;
+    line-height: 1.3;
+  }
+  
+  .hero-logos {
+    gap: 12px;
+    margin-top: 12px;
+  }
+  
+  .hero-logos img {
+    height: 48px;
+    width: 48px;
+  }
+  
+  .auth-panel {
+    padding: 12px;
+  }
+  
+  .auth-card {
+    padding: 28px 20px;
+    padding-top: 40px;
+    padding-left: 20px;
+    border-radius: 12px;
+  }
+  
+  .auth-head {
+    margin-bottom: 20px;
+    padding-top: 10px;
+  }
+  
+  .auth-head h2 {
+    font-size: 18px;
+  }
+  
+  .auth-head p {
+    font-size: 10px;
+  }
+  
+  .input-group {
+    margin-bottom: 14px;
+  }
+  
+  .input-group label {
+    font-size: 11px;
+  }
+  
+  .input-group input,
+  .input-group select,
+  .input-group textarea {
+    font-size: 13px;
+    padding: 10px 10px;
+    height: 40px;
+  }
+  
+  .btn {
+    font-size: 13px;
+    padding: 10px;
+    height: 42px;
+  }
+  
+  .signup-link {
+    font-size: 12px;
+    margin-top: 12px;
+  }
+  
+  .link.forgot {
+    font-size: 11px;
+  }
+  
+  .form-msg {
+    font-size: 12px;
+  }
+  
+  /* Modal adjustments */
+  .modal-content,
+  #changePasswordModal .modal-content.recovery,
+  #signupModal .modal-content.recovery {
+    max-width: 95%;
+    padding: 24px 16px;
+  }
+  
+  #signupModal .modal-content.recovery h2,
+  #changePasswordModal .modal-content.recovery h2 {
+    padding-left: 0;
+    text-align: center;
+  }
+  
+  #signupModal .modal-content.recovery .modal-sub,
+  #changePasswordModal .modal-content.recovery .modal-sub {
+    padding-left: 0;
+    text-align: center;
+  }
+  
+  #signupModal .modal-content.recovery form {
+    max-width: 100%;
+  }
+  
+  #signupSuccessModal .modal-content.status,
+  #signupErrorModal .modal-content.status {
+    max-width: 95%;
+    padding: 0 12px 16px 12px;
+  }
+  
+  .modal-content h2 {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  
+  .modal .status-title {
+    font-size: 24px;
+    padding-top: 20px;
+  }
+  
+  .modal .status-sub {
+    font-size: 11px;
+    margin-bottom: 20px;
+  }
+  
+  .modal .status-icon {
+    width: 120px;
+    height: 120px;
+    font-size: 44px;
+    margin: -60px auto 8px auto;
+    border: 6px solid #ffffff;
+  }
+  
+  .modal .status-bar {
+    height: 100px;
+  }
+  
+  #changePasswordModal .modal-buttons.row,
+  #adminPasswordModal .modal-buttons.row {
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 0;
+    padding-bottom: 16px;
+  }
+  
+  #changePasswordModal .btn.small {
+    font-size: 11px;
+    padding: 5px 8px;
+    height: 32px;
+    min-width: 60px;
+  }
+  
+  #changePasswordModal .inline-action {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  
+  #changePasswordModal .inline-action .btn.small {
+    width: 100%;
+    height: 40px;
+    font-size: 13px;
+  }
+  
+  .field-validation {
+    font-size: 10px;
+  }
+  
+  /* Admin view adjustments */
+  #adminLoginView {
+    margin-left: 0;
+    padding-left: 20px;
+    margin-top: 0;
+    min-height: auto;
+  }
+  
+  #adminLoginView .auth-head {
+    margin-bottom: 30px;
+  }
+  
+  .admin-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+  }
+  
+  #adminLoginView .auth-head h2 {
+    font-size: 18px;
+  }
+  
+  #adminLoginView .auth-head p {
+    font-size: 10px;
+  }
+  
+  .typewriter-cursor {
+    height: 40px;
+  }
+}
+
+@media (max-width: 360px) {
+  .hero-content h1 {
+    font-size: 28px;
+  }
+  
+  .hero-sub {
+    font-size: 13px;
+  }
+  
+  .hero-logos img {
+    height: 40px;
+    width: 40px;
+  }
+  
+  .auth-card {
+    padding: 24px 16px;
+    padding-top: 32px;
+    padding-left: 16px;
+  }
+  
+  .auth-head h2 {
+    font-size: 16px;
+  }
+  
+  .input-group input,
+  .input-group select,
+  .input-group textarea {
+    font-size: 12px;
+    padding: 9px;
+    height: 38px;
+  }
+  
+  .btn {
+    font-size: 12px;
+    height: 40px;
+  }
+  
+  .modal-content {
+    max-width: 98%;
+    padding: 20px 12px;
+  }
+  
+  .typewriter-cursor {
+    height: 35px;
   }
 }
 
@@ -850,7 +1368,7 @@ body.modal-open .auth-card {
 }
 
 .error-notification::before {
-    content: "✕";
+    content: "âœ•";
     width: 24px;
     height: 24px;
     position: relative;
@@ -892,7 +1410,7 @@ body.modal-open .auth-card {
 }
 
 .success-notification::before {
-  content: "✓";
+  content: "âœ“";
   width: 24px;
   height: 24px;
   position: relative;

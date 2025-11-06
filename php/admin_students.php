@@ -77,15 +77,15 @@ $result = $conn->query($query);
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
             min-height: 100vh;
         }
         
         .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(145deg, #2C5E8F 0%, #1e4a70 100%);
             color: white;
             padding: 15px 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 15px rgba(44, 94, 143, 0.2);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -149,12 +149,13 @@ $result = $conn->query($query);
             background: white;
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(44, 94, 143, 0.08);
             transition: all 0.3s ease;
             text-decoration: none;
             color: inherit;
             display: block;
             position: relative;
+            border-left: 4px solid #5A9BD5;
         }
         
         .student-card.inactive {
@@ -163,7 +164,7 @@ $result = $conn->query($query);
         
         .student-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 8px 20px rgba(90, 155, 213, 0.3);
         }
         
         .student-card.inactive:hover {
@@ -182,7 +183,7 @@ $result = $conn->query($query);
         .student-avatar {
             width: 60px;
             height: 60px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -248,7 +249,7 @@ $result = $conn->query($query);
         .stat-value {
             font-size: 20px;
             font-weight: bold;
-            color: #667eea;
+            color: #5A9BD5;
             display: block;
         }
         
@@ -335,7 +336,7 @@ $result = $conn->query($query);
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(102, 126, 234, 0.9);
+            background: rgba(90, 155, 213, 0.95);
             color: white;
             padding: 8px 15px;
             border-radius: 20px;
@@ -343,6 +344,7 @@ $result = $conn->query($query);
             z-index: 1000;
             display: none;
             animation: fadeInOut 2s ease-in-out;
+            box-shadow: 0 2px 10px rgba(44, 94, 143, 0.3);
         }
         
         @keyframes fadeInOut {

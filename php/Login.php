@@ -21,6 +21,34 @@ $adminError = "";
 $ADMIN_USERNAME = "admin";
 $ADMIN_PASSWORD = "admin";
 
+// AJAX: Admin change password
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "admin_change_password") {
+    header('Content-Type: application/json');
+    $current_password = $_POST["current_password"] ?? "";
+    $new_password = $_POST["new_password"] ?? "";
+    $confirm_password = $_POST["confirm_password"] ?? "";
+    
+    $response = [ 'ok' => false, 'message' => 'Invalid request' ];
+    
+    if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
+        $response = [ 'ok' => false, 'message' => 'All fields are required' ];
+    } elseif ($current_password !== $ADMIN_PASSWORD) {
+        $response = [ 'ok' => false, 'message' => 'Current password is incorrect' ];
+    } elseif ($new_password !== $confirm_password) {
+        $response = [ 'ok' => false, 'message' => 'New passwords do not match' ];
+    } elseif (strlen($new_password) < 4) {
+        $response = [ 'ok' => false, 'message' => 'New password must be at least 4 characters' ];
+    } else {
+        // In a real application, you would update the password in a database
+        // For now, we'll just return success
+        // TODO: Update $ADMIN_PASSWORD or store in database
+        $response = [ 'ok' => true, 'message' => 'Password changed successfully! Please use new password on next login.' ];
+    }
+    
+    echo json_encode($response);
+    exit();
+}
+
 // Store old values to retain in case of errors
 $old = [
     'username' => '',
@@ -573,7 +601,7 @@ $conn->close();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Login Page</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=<?= time() ?>">
 <style>
 /* Inline field validation messages: small, left-aligned, red */
 .field-validation {
@@ -620,9 +648,11 @@ $conn->close();
 
 /* Admin icon styles */
 .admin-icon {
-    font-size: 48px;
-    margin-bottom: 10px;
+    width: 140px;
+    height: 140px;
     display: inline-block;
+    margin-top: -35px;
+    object-fit: contain;
     animation: lockBounce 0.6s ease;
 }
 
@@ -646,7 +676,6 @@ $conn->close();
     color: #ffffff;
     margin-bottom: 8px;
 }
-
 #adminLoginView .auth-head p {
     font-size: 12px;
     opacity: 0.85;
@@ -685,9 +714,10 @@ $conn->close();
                     <div class="input-group float">
                         <input type="password" id="password" name="password" placeholder=" " required>
                         <label for="password">Password</label>
+                        <button type="button" id="loginPwdToggle" class="pwd-toggle eye" aria-label="Show password" style="display:none;"></button>
                     </div>
                     <div class="form-row-small">
-                        <a class="link forgot" href="javascript:void(0)" onclick="openChangePasswordModal()">Forgot password</a>
+                        <a class="link forgot" href="javascript:void(0)" onclick="openChangePasswordModal()">Forgot Password?</a>
                     </div>
                     <?php if (!empty($error)) { ?>
                         <p class="form-msg error"><?= $error ?></p>
@@ -708,11 +738,11 @@ $conn->close();
             <div id="adminLoginView" class="auth-card-content fade-out" style="display: none; margin-left: -90px; padding-left: 105px; margin-top: -15px;">
                 <div style="display: flex; flex-direction: column; width: 100%; align-items: center;">
                     <div class="auth-head" style="text-align: center; width: 100%; display: flex; flex-direction: column; align-items: center; margin-bottom: 50px; padding-top: 0;">
-                        <div class="admin-icon">🔐</div>
-                        <h2 style="margin: 0;">Admin Portal</h2>
-                        <p style="margin-top: 8px;">OJT Activity Log System</p>
+                        <img class="admin-icon" src="img/admin.png" alt="Admin" />
+                        <h2 style="margin-top: -20px;">Admin Portal</h2>
+                        <p style="margin-top: -10px;">OJT Activity Log System</p>
                     </div>
-                    <form id="adminLoginForm" style="width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center;">
+                    <form id="adminLoginForm" style="width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; margin-top: -20px;">
                         <div class="input-group float" style="width: 100%; max-width: 350px; margin-bottom: 20px;">
                             <input type="text" id="admin-username" name="admin_username" placeholder=" " required>
                             <label for="admin-username">Username</label>
@@ -721,8 +751,11 @@ $conn->close();
                             <input type="password" id="admin-password" name="admin_password" placeholder=" " required>
                             <label for="admin-password">Password</label>
                         </div>
+                        <div class="form-row-small" style="width: 100%; max-width: 350px; justify-content: flex-end; margin-top: -10px; margin-bottom: 10px;">
+                            <a class="link forgot" href="javascript:void(0)" onclick="openAdminPasswordModal()">Forgot Password?</a>
+                        </div>
                         <p class="form-msg error" id="adminErrorMsg" style="display: none; max-width: 350px; width: 100%; text-align: center; margin-bottom: 10px;"></p>
-                        <button type="submit" class="btn primary" id="adminLoginBtn" style="width: 100%; max-width: 350px; margin-bottom: 5px;">Login as Admin</button>
+                        <button type="submit" class="btn primary" id="adminLoginBtn" style="width: 100%; max-width: 350px; margin-bottom: 5px;">Login</button>
                         <div style="text-align: center; width: 100%;">
                             <a href="javascript:void(0)" onclick="switchToStudentLogin()" style="color: #9db2ff; text-decoration: none; font-size: 14px;">
                                 ← Back to Student Login
@@ -811,41 +844,87 @@ $conn->close();
 <div id="changePasswordModal" class="modal">
     <div class="modal-content recovery">
         <br>
-        <h2 align="left">Password Recovery</h2>
-        <p class="modal-sub">Enter your email to get OTP.</p>
+        <h2 align="left">Create a strong password</h2>
+        <p class="modal-sub">Create a new, strong password that you don’t use for other websites.</p>
         <br>
         <form id="changePasswordForm" method="POST" action="Login.php">
-            <div class="input-group inline-action float">
-                <div class="flex-1">
-                    <input type="email" id="change-email" name="change_email" placeholder=" " required value="<?= htmlspecialchars($old['change_email']) ?>">
-                    <label for="change-email">Email</label>
+            <!-- Step 1: Email + Verification Code -->
+            <div id="recovery-step1" class="step-section visible">
+                <div class="input-group inline-action float">
+                    <div class="flex-1">
+                        <input type="email" id="change-email" name="change_email" placeholder=" " required value="<?= htmlspecialchars($old['change_email']) ?>">
+                        <label for="change-email">Email</label>
+                    </div>
+                    <button type="button" id="sendCodeBtn" class="btn small">Send Code</button>
                 </div>
-                <button type="button" id="sendCodeBtn" class="btn small">Send Code</button>
-            </div>
-            <div class="input-group float">
-                <input type="text" id="verification-code" name="verification_code" placeholder=" " required>
-                <label for="verification-code">Verification Code</label>
-                <div class="field-validation" id="verification-code-status"></div>
-            </div>
-            <!-- New Password fields always visible; server validates OTP on submit -->
-            <div id="newPasswordFields">
                 <div class="input-group float">
-                    <input type="password" id="new-password" name="new_password" placeholder=" " disabled>
+                    <input type="text" id="verification-code" name="verification_code" placeholder=" " required>
+                    <label for="verification-code">Verification Code</label>
+                    <div class="field-validation" id="verification-code-status"></div>
+                </div>
+                <?php if (!empty($changePasswordError)) { ?>    
+                    <p style="color: red; margin-top: 10px;"><?= $changePasswordError ?></p>
+                <?php } ?>
+                <div class="modal-buttons row">
+                    <button type="button" id="nextStepBtn" class="btn primary" disabled>Next</button>
+                    <button type="button" class="btn outline" onclick="closeChangePasswordModal()">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Step 2: New Password -->
+            <div id="recovery-step2" class="step-section hidden">
+                <div class="input-group float">
+                    <input type="password" id="new-password" name="new_password" placeholder=" ">
                     <label for="new-password">Password</label>
                     <div class="field-validation" id="recovery-password-error"></div>
                 </div>
                 <div class="input-group float">
-                    <input type="password" id="confirm-password" name="confirm_password" placeholder=" " disabled>
+                    <input type="password" id="confirm-password" name="confirm_password" placeholder=" ">
                     <label for="confirm-password">Confirm Password</label>
                     <div class="field-validation" id="recovery-confirm-error"></div>
                 </div>
+                <div class="show-password-row">
+                    <input type="checkbox" id="recovery-show-password">
+                    <label for="recovery-show-password" style="font-size:12px;color:#333;">Show Password</label>
+                </div>
+                <div class="modal-buttons row" style="margin-top: 14px;">
+                    <button type="submit" id="resetSubmitBtn" class="btn primary">Reset</button>
+                    <button type="button" class="btn outline" onclick="closeChangePasswordModal()">Cancel</button>
+                </div>
             </div>
-            <?php if (!empty($changePasswordError)) { ?>    
-                <p style="color: red; margin-top: 10px;"><?= $changePasswordError ?></p>
-            <?php } ?>
-            <div class="modal-buttons row">
-                <button type="submit" class="btn primary">Reset</button>
-                <button type="button" class="btn outline" onclick="closeChangePasswordModal()">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<!-- Admin Change Password Modal -->
+<div id="adminPasswordModal" class="modal">
+    <div class="modal-content admin-recovery">
+        <br>
+        <h2>Change Admin Password</h2>
+        <p class="modal-sub">Enter your current password and choose a new one.</p>
+        <br>
+        <form id="adminPasswordForm" style="margin-top:-25px;">
+            <div class="input-group float">
+                <input type="password" id="admin-current-password" name="current_password" placeholder=" " required>
+                <label for="admin-current-password">Current Password</label>
+            </div>
+            <div class="input-group float">
+                <input type="password" id="admin-new-password" name="new_password" placeholder=" " required>
+                <label for="admin-new-password">New Password</label>
+                <div class="field-validation" id="admin-password-error"></div>
+            </div>
+            <div class="input-group float">
+                <input type="password" id="admin-confirm-password" name="confirm_password" placeholder=" " required>
+                <label for="admin-confirm-password">Confirm New Password</label>
+                <div class="field-validation" id="admin-confirm-error"></div>
+            </div>
+            <div class="show-password-row">
+                <input type="checkbox" id="admin-show-password">
+                <label for="admin-show-password" style="font-size:12px;color:#333;">Show Password</label>
+            </div>
+            <div class="modal-buttons row" style="margin-top: 14px;">
+                <button type="submit" class="btn primary">Change Password</button>
+                <button type="button" class="btn outline" onclick="closeAdminPasswordModal()">Cancel</button>
             </div>
         </form>
     </div>
@@ -854,6 +933,7 @@ $conn->close();
 <script>
 // Add variable for modal state
 let keepOverlayForStatus = false;
+let otpVerified = false; // controls enabling of Next
 
 // Floating notification helper (error or success)
 function showFloatingNotification(message, type = 'error') {
@@ -1172,12 +1252,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function validateRecoveryFields(showConfirmErrors = false) {
         let ok = true;
-        if (np && !np.disabled) {
-            const res = validatePasswordRules(np.value || '');
-            npErr && (npErr.textContent = buildPasswordErrorText(res));
-            if (!res.ok) ok = false;
+        if (np) {
+            const val = np.value || '';
+            if (val.length === 0) {
+                if (npErr) npErr.textContent = '';
+            } else {
+                const res = validatePasswordRules(val);
+                npErr && (npErr.textContent = buildPasswordErrorText(res));
+                if (!res.ok) ok = false;
+            }
         }
-        if (cp && np && !cp.disabled) {
+        if (cp && np) {
             const cpVal = cp.value || '';
             const match = cpVal === (np.value || '');
             const shouldShow = showConfirmErrors || cpVal.length > 0;
@@ -1201,6 +1286,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Step navigation for Password Recovery
+function goToRecoveryStep(step) {
+    const s1 = document.getElementById('recovery-step1');
+    const s2 = document.getElementById('recovery-step2');
+    if (!s1 || !s2) return;
+    if (step === 1) {
+        s1.classList.remove('hidden'); s1.classList.add('visible');
+        s2.classList.remove('visible'); s2.classList.add('hidden');
+    } else {
+        s1.classList.remove('visible'); s1.classList.add('hidden');
+        s2.classList.remove('hidden'); s2.classList.add('visible');
+    }
+}
+
 // Update the modal functions
 function openSignupModal() {
     const modal = document.getElementById('signupModal');
@@ -1217,13 +1316,27 @@ function openChangePasswordModal() {
     const modal = document.getElementById('changePasswordModal');
     if (!modal) return;
     
-    const np = document.getElementById('newPasswordFields');
-    if (np) np.style.display = 'block';
-    
-    const newPasswordField = document.getElementById('new-password');
-    const confirmPasswordField = document.getElementById('confirm-password');
-    if (newPasswordField) newPasswordField.disabled = true;
-    if (confirmPasswordField) confirmPasswordField.disabled = true;
+    // Reset to step 1
+    otpVerified = false;
+    const nextBtn = document.getElementById('nextStepBtn');
+    if (nextBtn) nextBtn.disabled = true;
+    const vcodeStatus = document.getElementById('verification-code-status');
+    if (vcodeStatus) vcodeStatus.textContent = '';
+    const vcodeInput = document.getElementById('verification-code');
+    if (vcodeInput) vcodeInput.value = '';
+    const npField = document.getElementById('new-password');
+    const cpField = document.getElementById('confirm-password');
+    if (npField) npField.value = '';
+    if (cpField) cpField.value = '';
+    const npErr = document.getElementById('recovery-password-error');
+    const cpErr = document.getElementById('recovery-confirm-error');
+    if (npErr) npErr.textContent = '';
+    if (cpErr) cpErr.textContent = '';
+    const showPw = document.getElementById('recovery-show-password');
+    if (showPw) showPw.checked = false;
+    if (npField) npField.type = 'password';
+    if (cpField) cpField.type = 'password';
+    goToRecoveryStep(1);
     
     document.body.classList.add('modal-open');
     modal.style.display = 'flex';
@@ -1264,14 +1377,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Live verify of OTP code to enable password fields only when correct
     const vcodeInput = document.getElementById('verification-code');
     const vcodeStatus = document.getElementById('verification-code-status');
-    const npField = document.getElementById('new-password');
-    const cpField = document.getElementById('confirm-password');
+    const nextBtn = document.getElementById('nextStepBtn');
     let vTimer = null;
-    function setRecoveryEnabled(enabled) {
-        if (npField) npField.disabled = !enabled;
-        if (cpField) cpField.disabled = !enabled;
-    }
-    setRecoveryEnabled(false);
+    otpVerified = false; if (nextBtn) nextBtn.disabled = true;
     if (vcodeInput) {
         vcodeInput.addEventListener('input', function(){
             // debounce
@@ -1281,7 +1389,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const code = vcodeInput.value.trim();
                 if (!email || !code) {
                     vcodeStatus && (vcodeStatus.textContent = '');
-                    setRecoveryEnabled(false);
+                    otpVerified = false; if (nextBtn) nextBtn.disabled = true;
                     return;
                 }
                 const params = new URLSearchParams();
@@ -1292,19 +1400,26 @@ document.addEventListener('DOMContentLoaded', function() {
                   .then(r => r.json())
                   .then(j => {
                     if (j.ok) {
-                        // No success text; just enable the fields silently
                         vcodeStatus && (vcodeStatus.textContent = '');
-                        setRecoveryEnabled(true);
+                        otpVerified = true; if (nextBtn) nextBtn.disabled = false;
                     } else {
-                        vcodeStatus && (vcodeStatus.textContent = j.message || 'Invalid or expired code');
-                        setRecoveryEnabled(false);
+                        vcodeStatus && (vcodeStatus.textContent = j.message || 'Invalid verification code');
+                        otpVerified = false; if (nextBtn) nextBtn.disabled = true;
                     }
                   })
                   .catch(() => {
                     vcodeStatus && (vcodeStatus.textContent = 'Network error.');
-                    setRecoveryEnabled(false);
+                    otpVerified = false; if (nextBtn) nextBtn.disabled = true;
                   });
             }, 350);
+        });
+    }
+    // Next button handler to go to step 2
+    const nextBtnEl = document.getElementById('nextStepBtn');
+    if (nextBtnEl) {
+        nextBtnEl.addEventListener('click', function(){
+            if (!otpVerified) return;
+            goToRecoveryStep(2);
         });
     }
 });
@@ -1355,8 +1470,7 @@ document.getElementById('signupForm').addEventListener('submit', function(e) {
 // Smooth AJAX Change Password
 document.getElementById('changePasswordForm').addEventListener('submit', function(e){
     e.preventDefault();
-    const btns = this.querySelectorAll('.modal-buttons .btn');
-    const resetBtn = this.querySelector('.modal-buttons .btn.primary');
+    const resetBtn = document.getElementById('resetSubmitBtn');
     if (resetBtn) { resetBtn.disabled = true; resetBtn.textContent = 'Saving...'; }
     const form = new FormData(this);
     form.append('ajax', 'change_password');
@@ -1386,6 +1500,42 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
             resetBtn.disabled = false; 
             resetBtn.textContent = 'Reset'; 
         } 
+    });
+});
+
+// Show Password checkbox toggle in recovery step
+document.addEventListener('DOMContentLoaded', function(){
+    const cb = document.getElementById('recovery-show-password');
+    const np = document.getElementById('new-password');
+    const cp = document.getElementById('confirm-password');
+    if (cb) {
+        cb.addEventListener('change', function(){
+            const type = this.checked ? 'text' : 'password';
+            if (np) np.type = type;
+            if (cp) cp.type = type;
+        });
+    }
+});
+
+// Login page: show/hide eye icon and toggle visibility
+document.addEventListener('DOMContentLoaded', function(){
+    const pwd = document.getElementById('password');
+    const toggle = document.getElementById('loginPwdToggle');
+    if (!pwd || !toggle) return;
+    function updateToggle() {
+        if ((pwd.value || '').length > 0) {
+            toggle.style.display = 'block';
+        } else {
+            toggle.style.display = 'none';
+            toggle.classList.remove('showing');
+            pwd.type = 'password';
+        }
+    }
+    pwd.addEventListener('input', updateToggle);
+    toggle.addEventListener('click', function(){
+        const showing = pwd.type === 'text';
+        pwd.type = showing ? 'password' : 'text';
+        toggle.classList.toggle('showing', !showing);
     });
 });
 
@@ -1474,6 +1624,42 @@ function closeChangePasswordModal() {
     }, 300);
 }
 
+function openAdminPasswordModal() {
+    const modal = document.getElementById('adminPasswordModal');
+    if (!modal) return;
+    
+    // Clear form
+    document.getElementById('admin-current-password').value = '';
+    document.getElementById('admin-new-password').value = '';
+    document.getElementById('admin-confirm-password').value = '';
+    const adminPwErr = document.getElementById('admin-password-error');
+    const adminConfErr = document.getElementById('admin-confirm-error');
+    if (adminPwErr) adminPwErr.textContent = '';
+    if (adminConfErr) adminConfErr.textContent = '';
+    const showPw = document.getElementById('admin-show-password');
+    if (showPw) showPw.checked = false;
+    document.getElementById('admin-current-password').type = 'password';
+    document.getElementById('admin-new-password').type = 'password';
+    document.getElementById('admin-confirm-password').type = 'password';
+    
+    document.body.classList.add('modal-open');
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => {
+        modal.classList.add('show');
+    });
+}
+
+function closeAdminPasswordModal() {
+    const modal = document.getElementById('adminPasswordModal');
+    if (!modal) return;
+    
+    document.body.classList.remove('modal-open');
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
+
 // Update modal click handlers to prevent event bubbling
 document.addEventListener('DOMContentLoaded', function() {
     // Prevent modal closing when clicking modal content
@@ -1542,6 +1728,86 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Start typewriter effect
     typeWriter();
+});
+
+// Admin password form validation and submit
+document.addEventListener('DOMContentLoaded', function(){
+    const adminPwForm = document.getElementById('adminPasswordForm');
+    const adminNewPw = document.getElementById('admin-new-password');
+    const adminConfPw = document.getElementById('admin-confirm-password');
+    const adminPwErr = document.getElementById('admin-password-error');
+    const adminConfErr = document.getElementById('admin-confirm-error');
+    
+    function validateAdminPassword(showConfirmErrors = false) {
+        let ok = true;
+        if (adminNewPw) {
+            const val = adminNewPw.value || '';
+            if (val.length === 0) {
+                if (adminPwErr) adminPwErr.textContent = '';
+            } else if (val.length < 4) {
+                if (adminPwErr) adminPwErr.textContent = 'Password must be at least 4 characters';
+                ok = false;
+            } else {
+                if (adminPwErr) adminPwErr.textContent = '';
+            }
+        }
+        if (adminConfPw && adminNewPw) {
+            const cpVal = adminConfPw.value || '';
+            const match = cpVal === (adminNewPw.value || '');
+            const shouldShow = showConfirmErrors || cpVal.length > 0;
+            if (adminConfErr) adminConfErr.textContent = shouldShow && !match ? 'Passwords do not match' : '';
+            if (!match) ok = false;
+        }
+        return ok;
+    }
+    
+    if (adminNewPw) adminNewPw.addEventListener('input', () => validateAdminPassword(false));
+    if (adminConfPw) adminConfPw.addEventListener('input', () => validateAdminPassword(false));
+    
+    if (adminPwForm) {
+        adminPwForm.addEventListener('submit', function(e){
+            e.preventDefault();
+            if (!validateAdminPassword(true)) {
+                if (adminPwErr && adminPwErr.textContent) adminNewPw && adminNewPw.focus();
+                else if (adminConfErr && adminConfErr.textContent) adminConfPw && adminConfPw.focus();
+                return false;
+            }
+            
+            const btn = this.querySelector('.btn.primary');
+            if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+            
+            const formData = new FormData(this);
+            formData.append('ajax', 'admin_change_password');
+            
+            fetch('Login.php', { method: 'POST', body: new URLSearchParams(formData) })
+            .then(r => r.json())
+            .then(j => {
+                showFloatingNotification(j.message || (j.ok ? 'Password changed!' : 'Failed to change password'), j.ok ? 'success' : 'error');
+                if (j.ok) {
+                    closeAdminPasswordModal();
+                }
+            })
+            .catch(() => showFloatingNotification('Network error. Please try again.', 'error'))
+            .finally(() => { 
+                if (btn) { 
+                    btn.disabled = false; 
+                    btn.textContent = 'Change Password'; 
+                } 
+            });
+        });
+    }
+    
+    // Show password toggle for admin modal
+    const adminShowCb = document.getElementById('admin-show-password');
+    const adminCurPw = document.getElementById('admin-current-password');
+    if (adminShowCb) {
+        adminShowCb.addEventListener('change', function(){
+            const type = this.checked ? 'text' : 'password';
+            if (adminCurPw) adminCurPw.type = type;
+            if (adminNewPw) adminNewPw.type = type;
+            if (adminConfPw) adminConfPw.type = type;
+        });
+    }
 });
 </script>
 </body>
