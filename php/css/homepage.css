@@ -1904,41 +1904,45 @@ body::before {
   border: 2px solid transparent;
 }
 
-/* Floating Printable View button */
-.floating-print-btn {
+/* Floating Printable View button group */
+.floating-print-btn-group {
     position: fixed;
     right: 24px;
     bottom: 24px;
-    display: none; /* hidden by default */
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    background: #2c5e8f;
-    color: #fff;
-    border: none;
+  display: none; /* shown via JS when weekly view is active */
+    z-index: 5000;
     border-radius: 28px;
-    box-shadow: 0 10px 24px rgba(0,0,0,0.2);
-    cursor: default; /* no function yet */
-    z-index: 1100; /* above content */
-    font-weight: 600;
-    letter-spacing: .2px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  background: #2c5e8f; /* base color matches original single button */
+  display: flex; /* allow equal-width children */
 }
-.floating-print-btn img {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-    filter: brightness(0) invert(1); /* make icon white if dark */
+.floating-print-btn {
+  flex: 1 1 0;
+  padding: 12px 24px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.25s ease;
+  background: #2c5e8f;
+  color: #fff;
+  letter-spacing: .3px;
+}
+.floating-print-btn-left {
+  border-radius: 28px 0 0 28px;
+  border-right: 1px solid rgba(255,255,255,0.15);
+  width: 120px;
+}
+.floating-print-btn-right {
+  border-radius: 0 28px 28px 0;
 }
 .floating-print-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 30px rgba(0,0,0,0.25);
+  opacity: 0.85;
 }
 @media (max-width: 600px) {
-    .floating-print-btn {
-        right: 16px;
-        bottom: 16px;
-        padding: 9px 12px;
-    }
+    .floating-print-btn-group { right: 16px; bottom: 16px; }
+  .floating-print-btn { padding: 10px 18px; font-size: 13px; }
 }
 
 .btn.cancel-outline {

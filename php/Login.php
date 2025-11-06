@@ -717,7 +717,7 @@ $conn->close();
                         <button type="button" id="loginPwdToggle" class="pwd-toggle eye" aria-label="Show password" style="display:none;"></button>
                     </div>
                     <div class="form-row-small">
-                        <a class="link forgot" href="javascript:void(0)" onclick="openChangePasswordModal()">Forgot password</a>
+                        <a class="link forgot" href="javascript:void(0)" onclick="openChangePasswordModal()">Forgot Password?</a>
                     </div>
                     <?php if (!empty($error)) { ?>
                         <p class="form-msg error"><?= $error ?></p>
@@ -752,7 +752,7 @@ $conn->close();
                             <label for="admin-password">Password</label>
                         </div>
                         <div class="form-row-small" style="width: 100%; max-width: 350px; justify-content: flex-end; margin-top: -10px; margin-bottom: 10px;">
-                            <a class="link forgot" href="javascript:void(0)" onclick="openAdminPasswordModal()">Forgot password?</a>
+                            <a class="link forgot" href="javascript:void(0)" onclick="openAdminPasswordModal()">Forgot Password?</a>
                         </div>
                         <p class="form-msg error" id="adminErrorMsg" style="display: none; max-width: 350px; width: 100%; text-align: center; margin-bottom: 10px;"></p>
                         <button type="submit" class="btn primary" id="adminLoginBtn" style="width: 100%; max-width: 350px; margin-bottom: 5px;">Login</button>
