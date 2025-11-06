@@ -145,6 +145,43 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
         exit();
     }
 
+    // AJAX: load a specific record by date (YYYY-MM-DD) so modal can edit past dates
+    if ($_POST["ajax"] === "load_by_date") {
+        $requestedDate = trim((string)($_POST['date'] ?? ''));
+        // basic validation YYYY-MM-DD
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $requestedDate)) {
+            $response['status'] = 'error';
+            $response['message'] = 'Invalid date';
+            echo json_encode($response);
+            exit();
+        }
+
+        $sql = "SELECT time_in, time_out, task_completed, date_record FROM weekly_accomplishments WHERE users_user_id = ? AND DATE(date_record) = ? LIMIT 1";
+        if ($stmt = $conn->prepare($sql)) {
+            $stmt->bind_param('is', $user_id, $requestedDate);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res->fetch_assoc() ?: [];
+
+            // Determine whether the requested date lies in the current ISO week/year
+            $dt = DateTime::createFromFormat('Y-m-d', $requestedDate);
+            $weekNum = $dt ? (int)$dt->format('W') : null;
+            $yearNum = $dt ? (int)$dt->format('Y') : null;
+            $currentWeek = date('W');
+            $currentYear = date('Y');
+            $isCurrentWeek = ($weekNum == $currentWeek && $yearNum == $currentYear);
+
+            $response['status'] = 'success';
+            $response['data'] = $row;
+            $response['is_current_week'] = $isCurrentWeek;
+            $response['selected_date'] = $requestedDate;
+            $stmt->close();
+        }
+
+        echo json_encode($response);
+        exit();
+    }
+
     if ($_POST["ajax"] === "save_form") {
         try {
             $conn->begin_transaction();
@@ -210,21 +247,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
 
             // Save weekly accomplishment first (only if form provided time/task fields)
             $user_id = $_SESSION["user_id"];
-            $today = date('Y-m-d');
+            // Allow saving to a specific date if provided (selected_date in YYYY-MM-DD)
+            $targetDate = date('Y-m-d');
+            if (!empty($_POST['selected_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['selected_date'])) {
+                $targetDate = $_POST['selected_date'];
+            }
 
             if (isset($_POST['time_in']) || isset($_POST['time_out']) || isset($_POST['task_completed'])) {
-                // First check if entry exists for today
+                // First check if entry exists for target date
                 $check_sql = "SELECT id FROM weekly_accomplishments
                              WHERE users_user_id = ?
                              AND DATE(date_record) = ?";
-           
+
                 $check_stmt = $conn->prepare($check_sql);
-                $check_stmt->bind_param("is", $user_id, $today);
+                $check_stmt->bind_param("is", $user_id, $targetDate);
                 $check_stmt->execute();
                 $result = $check_stmt->get_result();
-           
+
                 if ($result->num_rows > 0) {
-                    // Update existing record
+                    // Update existing record for target date
                     $update_sql = "UPDATE weekly_accomplishments
                                  SET time_in = ?,
                                      time_out = ?,
@@ -235,7 +276,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                                      last_updated_at = NOW()
                                  WHERE users_user_id = ?
                                  AND DATE(date_record) = ?";
-               
+
                     $stmt = $conn->prepare($update_sql);
                     $stmt->bind_param("sssssssssss",
                         $_POST['time_in'],
@@ -248,34 +289,38 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                         $_POST['time_in'],
                         $_POST['time_out'],
                         $user_id,
-                        $today
+                        $targetDate
                     );
                 } else {
-                    // Insert new record for today only
+                    // Insert new record for the selected/target date
                     $insert_sql = "INSERT INTO weekly_accomplishments
                                   (users_user_id, date_record, time_in, time_out, task_completed,
                                    total_hours, total, grand_total, last_updated_at)
-                                  VALUES (?, CURDATE(), ?, ?, ?,
-                                          TIMESTAMPDIFF(HOUR, CONCAT(CURDATE(), ' ', ?), CONCAT(CURDATE(), ' ', ?)),
-                                          TIMESTAMPDIFF(HOUR, CONCAT(CURDATE(), ' ', ?), CONCAT(CURDATE(), ' ', ?)),
-                                          TIMESTAMPDIFF(HOUR, CONCAT(CURDATE(), ' ', ?), CONCAT(CURDATE(), ' ', ?)),
+                                  VALUES (?, ?, ?, ?, ?,
+                                          TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
+                                          TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
+                                          TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
                                           NOW())";
-               
+
                     $stmt = $conn->prepare($insert_sql);
-                    $stmt->bind_param("isssssssss",
+                    // Bind: user_id, date_record, time_in, time_out, task, then (date,time_in,date,time_out)x3
+                    $stmt->bind_param("isssssssssssssss",
                         $user_id,
+                        $targetDate,
                         $_POST['time_in'],
                         $_POST['time_out'],
                         $_POST['task_completed'],
+                        $targetDate,
                         $_POST['time_in'],
+                        $targetDate,
                         $_POST['time_out'],
+                        $targetDate,
                         $_POST['time_in'],
-                        $_POST['time_out'],
-                        $_POST['time_in'],
+                        $targetDate,
                         $_POST['time_out']
                     );
                 }
-           
+
                 if (!$stmt->execute()) {
                     throw new Exception("Weekly accomplishment error: " . $stmt->error);
                 }
@@ -1131,12 +1176,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
                 <!-- Training period fields removed per user request -->
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="time-in">Time-In:</label>
-            <input type="time" id="time-in" name="time_in" required value="<?= htmlspecialchars($existing['time_in'] ?? '') ?>">
-            <div id="time-in-error" style="color: #e74c3c; font-size: 12px; margin-top: 2px; display: none;"></div>
-          </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="record-date">Date:</label>
+                        <input type="date" id="record-date" name="selected_date" value="<?= isset($date_today) ? $date_today : date('Y-m-d') ?>" style="max-width:200px;">
+                        <div style="height:6px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="time-in">Time-In:</label>
+                        <input type="time" id="time-in" name="time_in" required value="<?= htmlspecialchars($existing['time_in'] ?? '') ?>">
+                        <div id="time-in-error" style="color: #e74c3c; font-size: 12px; margin-top: 2px; display: none;"></div>
+                    </div>
           <div class="form-group">
             <label for="time-out">Time-Out:</label>
             <input type="time" id="time-out" name="time_out" required value="<?= htmlspecialchars($existing['time_out'] ?? '') ?>">
@@ -1152,14 +1202,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           </div>
         </div>
 
-        <p id="formMessage" style="margin: 8px 0 0 0;"></p>
+        
 
                         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
                             <button type="submit" id="submit-button" class="submit-btn primary-save">Submit</button>
                             <button class="btn cancel-red-outline" onclick="closeFillModal()">Close</button>
                         </div>
       </form>
-      <p id="formMessage"></p>
+      
     </div>
   </div>
 
@@ -1823,7 +1873,18 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const modal = document.getElementById("fillOutModal");
         if (modal) {
             modal.style.display = "flex";
-            loadTodayRecord(); // Load today's data
+            // Set date picker to today's date by default and load that record
+            try {
+                const dateInput = document.getElementById('record-date');
+                const today = '<?= $date_today ?>';
+                if (dateInput) {
+                    dateInput.value = today;
+                    // ensure change listener triggers when user picks another date
+                    dateInput.removeEventListener('change', handleRecordDateChange);
+                    dateInput.addEventListener('change', handleRecordDateChange);
+                }
+                loadRecordByDate(today);
+            } catch (err) { console.warn('openFillModal loadRecordByDate error', err); }
            
             // Reset form message
             const msg = document.getElementById("formMessage");
@@ -1966,6 +2027,64 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             }
         })
         .catch(err => console.error("Error loading record:", err));
+    }
+
+    // Load a record for a specific date (YYYY-MM-DD) and populate the Fill Out modal
+    function loadRecordByDate(dateStr) {
+        if (!dateStr) return;
+        const formData = new FormData();
+        formData.append('ajax', 'load_by_date');
+        formData.append('date', dateStr);
+
+        fetch(window.location.pathname, {
+            method: "POST",
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const timeInValue = data.data.time_in || '';
+                const timeOutValue = data.data.time_out || '';
+                const taskVal = data.data.task_completed || '';
+
+                const tinEl = document.getElementById('time-in');
+                const toutEl = document.getElementById('time-out');
+                const taskEl = document.getElementById('task');
+                if (tinEl) tinEl.value = timeInValue;
+                if (toutEl) toutEl.value = timeOutValue;
+                if (taskEl) taskEl.value = taskVal;
+
+                // Update any 12-hour display fields if present
+                const timeInDisplay = document.getElementById('time-in-display');
+                const timeOutDisplay = document.getElementById('time-out-display');
+                if (timeInDisplay && timeInValue) timeInDisplay.value = convert24HourTo12Hour(timeInValue);
+                if (timeOutDisplay && timeOutValue) timeOutDisplay.value = convert24HourTo12Hour(timeOutValue);
+
+                // Disable submit button if not current week and editing rules disallow changes (optional)
+                const submitBtn = document.getElementById('submit-button');
+                if (submitBtn) {
+                    // allow editing if server says it's current week; otherwise keep enabled but server may reject
+                    if (typeof data.is_current_week !== 'undefined' && !data.is_current_week) {
+                        // still allow editing of time/task, but inform user
+                        const msg = document.getElementById('formMessage');
+                        if (msg) { msg.style.color = '#e67e22'; msg.textContent = 'Editing past weeks is allowed; official times may be restricted.'; }
+                    } else {
+                        const msg = document.getElementById('formMessage'); if (msg) msg.textContent = '';
+                    }
+                }
+            } else {
+                console.warn('No record for date or error:', data.message);
+                // clear fields if none
+                const tinEl = document.getElementById('time-in'); if (tinEl) tinEl.value = '';
+                const toutEl = document.getElementById('time-out'); if (toutEl) toutEl.value = '';
+                const taskEl = document.getElementById('task'); if (taskEl) taskEl.value = '';
+            }
+        }).catch(err => console.error('Error loading record by date:', err));
+    }
+
+    function handleRecordDateChange(e) {
+        const d = e.target.value;
+        if (d) loadRecordByDate(d);
     }
 
     // Load selected week from dropdown
@@ -2561,6 +2680,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 formData.append('time_in', document.getElementById('time-in').value);
                 formData.append('time_out', document.getElementById('time-out').value);
                 formData.append('task_completed', document.getElementById('task').value);
+                // If user picked a specific date, include it so server saves/updates that date
+                try {
+                    const selDate = document.getElementById('record-date');
+                    if (selDate && selDate.value) formData.append('selected_date', selDate.value);
+                } catch (e) { /* ignore */ }
                
                 // Add official times - MANUALLY (always send for any week)
                 ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
