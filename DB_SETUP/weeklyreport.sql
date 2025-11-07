@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Nov 06, 2025 at 02:09 PM
+-- Generation Time: Nov 07, 2025 at 08:51 AM
 -- Server version: 10.3.39-MariaDB-0ubuntu0.20.04.2
 -- PHP Version: 7.4.3-4ubuntu2.29
 
@@ -658,7 +658,25 @@ INSERT INTO `login_attempts` (`id`, `users_user_id`, `ip_address`, `attempt_time
 (756, 55, '192.168.2.60', '2025-11-06 13:08:51', 'SUCCESS'),
 (757, 55, '192.168.2.60', '2025-11-06 14:00:41', 'LOG_OUT'),
 (758, 55, '192.168.2.60', '2025-11-06 14:00:41', 'LOG_OUT'),
-(759, 55, '192.168.2.65', '2025-11-06 14:00:46', 'SUCCESS');
+(759, 55, '192.168.2.65', '2025-11-06 14:00:46', 'SUCCESS'),
+(760, 44, '192.168.2.60', '2025-11-06 14:15:17', 'SUCCESS'),
+(761, 44, '192.168.2.65', '2025-11-06 16:10:44', 'SUCCESS'),
+(762, 44, '192.168.2.65', '2025-11-06 16:22:35', 'LOG_OUT'),
+(763, 44, '192.168.2.65', '2025-11-06 16:22:35', 'LOG_OUT'),
+(764, 55, '192.168.2.65', '2025-11-06 16:22:41', 'SUCCESS'),
+(765, 44, '192.168.2.60', '2025-11-06 16:29:23', 'LOG_OUT'),
+(766, 44, '192.168.2.60', '2025-11-06 16:29:23', 'LOG_OUT'),
+(767, 55, '192.168.2.60', '2025-11-06 16:29:30', 'INVALID_PASSWORD'),
+(768, 55, '192.168.2.60', '2025-11-06 16:29:34', 'SUCCESS'),
+(769, 55, '192.168.2.60', '2025-11-06 16:41:52', 'LOG_OUT'),
+(770, 55, '192.168.2.60', '2025-11-06 16:41:52', 'LOG_OUT'),
+(771, 55, '192.168.2.65', '2025-11-06 16:43:59', 'LOG_OUT'),
+(772, 55, '192.168.2.65', '2025-11-06 16:43:59', 'LOG_OUT'),
+(773, 55, '192.168.2.65', '2025-11-07 08:22:49', 'SUCCESS'),
+(774, 44, '192.168.2.60', '2025-11-07 08:36:49', 'SUCCESS'),
+(775, 55, '192.168.2.65', '2025-11-07 08:36:54', 'LOG_OUT'),
+(776, 55, '192.168.2.65', '2025-11-07 08:36:54', 'LOG_OUT'),
+(777, 44, '192.168.2.65', '2025-11-07 08:37:00', 'SUCCESS');
 
 -- --------------------------------------------------------
 
@@ -683,7 +701,7 @@ INSERT INTO `official_time` (`official_id`, `users_user_id`, `day_date`, `day_ti
 (205, 44, 'Mon', '8:00AM - 5:00PM', '2025-09-07 16:00:00', '2025-10-23 00:35:34'),
 (206, 44, 'Tue', '---', '2025-09-07 16:00:00', '2025-11-05 00:31:21'),
 (207, 44, 'Wed', '8:00AM - 5:00PM', '2025-09-07 16:00:00', '2025-10-23 00:35:34'),
-(208, 44, 'Thu', '8:00AM - 5:00PM', '2025-09-07 16:00:00', '2025-10-23 00:35:34'),
+(208, 44, 'Thu', '8:00 AM - 5:00 PM', '2025-09-07 16:00:00', '2025-11-06 06:44:41'),
 (209, 44, 'Fri', '8:00AM - 5:00PM', '2025-09-07 16:00:00', '2025-10-23 00:35:34'),
 (210, 44, 'Sat', '---', '2025-09-07 16:00:00', '2025-11-05 00:32:31'),
 (211, 44, 'Mon', '8:00AM - 5:00PM', '2025-09-15 16:00:00', '2025-10-23 00:35:34'),
@@ -789,23 +807,18 @@ INSERT INTO `official_time` (`official_id`, `users_user_id`, `day_date`, `day_ti
 (335, 55, 'Thu', '8:00 AM - 5:00 PM', '2025-09-07 16:33:58', '2025-09-07 16:33:58'),
 (336, 55, 'Fri', '8:00 AM - 5:00 PM', '2025-09-07 16:33:58', '2025-09-07 16:33:58'),
 (337, 55, 'Sat', '---', '2025-09-07 16:33:58', '2025-09-07 16:33:58'),
-(338, 55, 'Mon', '', '2025-11-02 16:33:58', '2025-11-06 05:41:37'),
-(339, 55, 'Tue', '', '2025-11-02 16:33:58', '2025-11-06 05:41:37'),
-(340, 55, 'Wed', '', '2025-11-02 16:33:58', '2025-11-06 05:41:37'),
-(341, 55, 'Thu', '', '2025-11-02 16:33:58', '2025-11-06 05:41:37'),
-(342, 55, 'Fri', '', '2025-11-02 16:33:58', '2025-11-06 05:41:37'),
-(343, 55, 'Sat', '', '2025-11-02 16:33:58', '2025-11-06 05:41:37'),
-(344, 44, 'Mon', '8:00 AM - 5:00 PM', '2025-11-05 02:45:02', '2025-11-06 02:41:36'),
-(345, 44, 'Tue', '---', '2025-11-05 02:45:02', '2025-11-06 02:00:29'),
-(346, 44, 'Wed', '8:00 AM - 5:00 PM', '2025-11-05 02:45:02', '2025-11-06 02:41:36'),
-(347, 44, 'Thu', '8:00 AM - 5:00 PM', '2025-11-05 02:45:02', '2025-11-06 02:41:36'),
-(348, 44, 'Fri', '8:00 AM - 5:00 PM', '2025-11-05 02:45:02', '2025-11-06 02:41:36'),
-(349, 44, 'Sat', '---', '2025-11-05 02:45:02', '2025-11-06 02:00:29'),
-(350, 55, 'Mon', '', '2025-11-06 05:47:25', '2025-11-06 05:47:25'),
-(351, 55, 'Tue', '', '2025-11-06 05:47:26', '2025-11-06 05:47:26'),
-(352, 55, 'Wed', '', '2025-11-06 05:47:26', '2025-11-06 05:47:26'),
-(353, 55, 'Thu', '', '2025-11-06 05:47:26', '2025-11-06 05:47:26'),
-(354, 55, 'Sat', '', '2025-11-06 05:47:26', '2025-11-06 05:47:26');
+(355, 44, 'Mon', '8:00 AM - 5:00 PM', '2025-11-06 06:45:30', '2025-11-07 00:42:12'),
+(356, 44, 'Tue', '---', '2025-11-06 06:45:30', '2025-11-07 00:42:12'),
+(357, 44, 'Wed', '8:00 AM - 5:00 PM', '2025-11-06 06:45:30', '2025-11-07 00:42:12'),
+(358, 44, 'Thu', '8:00 AM - 5:00 PM', '2025-11-06 06:45:30', '2025-11-07 00:42:12'),
+(359, 44, 'Fri', '8:00 AM - 5:00 PM', '2025-11-06 06:45:30', '2025-11-07 00:42:12'),
+(360, 44, 'Sat', '---', '2025-11-06 06:45:30', '2025-11-07 00:42:12'),
+(367, 55, 'Mon', '8:00 AM - 5:00 PM', '2025-11-02 16:00:00', '2025-11-06 08:28:47'),
+(368, 55, 'Tue', '', '2025-11-02 16:00:00', '2025-11-06 08:31:27'),
+(369, 55, 'Wed', '8:00 AM - 5:00 PM', '2025-11-02 16:00:00', '2025-11-06 08:28:47'),
+(370, 55, 'Thu', '8:00 AM - 5:00 PM', '2025-11-02 16:00:00', '2025-11-06 08:28:47'),
+(371, 55, 'Fri', '8:00 AM - 5:00 PM', '2025-11-02 16:00:00', '2025-11-06 08:28:47'),
+(372, 55, 'Sat', '', '2025-11-02 16:00:00', '2025-11-06 08:31:27');
 
 -- --------------------------------------------------------
 
@@ -825,8 +838,8 @@ CREATE TABLE `sessions` (
 --
 
 INSERT INTO `sessions` (`sessions_id`, `users_user_id`, `token`, `is_active`) VALUES
-(31, 44, 'a916c52975a80bd409d5df2463ec3f4104286982c76bd3530c4d4a81f399f0d0', 0),
-(37, 55, 'cd99caaa2629d4a4cfd22300ed91483cafe62095a6ccf98337003e0ee5bb0529', 1),
+(31, 44, '8f8cc0f3b7a1dbeea42cd76ced8e074d24f35f75265e96018b9368118c99775f', 1),
+(37, 55, '7725c0b8ce6cac075d85a2b67eab915f24d70171c6d58bff153e54cb8379e586', 0),
 (38, 57, 'f1adf7eb7ef53232829afd708305ef77c8c1f03cbf8af3d0b6bd43d69a1fdbcf', 0),
 (39, 54, '15c11ff1624af0306bd5d08b053d0574ac1c0121ea39a0971fee0b7d410b76b5', 0);
 
@@ -913,7 +926,7 @@ CREATE TABLE `weekly_accomplishments` (
 
 INSERT INTO `weekly_accomplishments` (`id`, `users_user_id`, `date_record`, `time_in`, `time_out`, `task_completed`, `total_hours`, `grand_total`, `total`, `last_updated_at`) VALUES
 (26, 44, '2025-09-08', '07:38', '17:15', 'Set up the PC we\'ll be using and troubleshoot other PCs. Then our supervisor briefed us about the tasks we\'ll be doing in the coming days/weeks', '8.00', '8.00', '8.00', '2025-09-08 10:14:48'),
-(27, 44, '2025-09-10', '07:55', '17:25', 'Simple development of an activity log web system, which was initially static using only HTML, CSS, and Python. Also, troubleshooting other PCs.', '8.00', '8.00', '8.00', '2025-09-10 10:14:48'),
+(27, 44, '2025-09-10', '07:55', '17:25', 'Simple development of an activity log web system, which was initially static using only HTML, CSS, and Python. Also, troubleshooting other PCs.', '8.00', '8.00', '8.00', '2025-11-06 14:19:25'),
 (28, 44, '2025-09-11', '07:52', '17:21', 'Added a simple function to the static system we created and connected it to a database. Then we set up PCs/laptop in their meeting/training room.', '8.00', '8.00', '8.00', '2025-09-11 10:14:48'),
 (29, 44, '2025-09-12', '07:19', '17:07', 'We connect the Login into database and adding signup and changepassword function', '8.00', '8.00', '8.00', '2025-09-12 10:14:48'),
 (30, 44, '2025-09-15', '08:00', '17:07', 'Checking and debugging the Login, Signup, changepassword and also we fix the errors on the backend.', '8.00', '8.00', '8.00', '2025-09-15 10:14:48'),
@@ -945,12 +958,43 @@ INSERT INTO `weekly_accomplishments` (`id`, `users_user_id`, `date_record`, `tim
 (68, 44, '2025-10-29', '07:33', '05:11', 'Setup Pc’s and publish our system to the company server', '8.00', '8.00', '8.00', '2025-10-29 10:14:48'),
 (69, 44, '2025-10-30', '07:20', '05:01', 'Adding admin side system and make it connected to the database in the backend', '8.00', '8.00', '8.00', '2025-10-30 10:14:48'),
 (70, 44, '2025-11-03', '07:27', '05:05', 'Redesigning admin side and add the real time fetching of data ', '8.00', '8.00', '8.00', '2025-11-03 10:14:48'),
-(75, 55, '2025-09-08', '07:38', '17:15', 'Set up the PC we\'ll be using and troubleshoot other PCs. Then our supervisor briefed us about the tasks we\'ll be doing in the coming days/weeks.', '8.00', '8.00', '8.00', '2025-11-06 14:00:15'),
+(75, 55, '2025-09-08', '07:38', '17:15', 'Set up the PC we\'ll be using and troubleshoot other PCs. Then our supervisor briefed us about the tasks we\'ll be doing in the coming days/weeks.', '8.00', '8.00', '8.00', '2025-11-06 14:42:22'),
 (76, 55, '2025-09-10', '7:55', '5:25', 'Simple development of an activity log web system, which was initially static using only HTML, CSS, and Python. Also, troubleshooting other PCs.', '8.00', '8.00', '8.00', '2025-09-10 10:14:48'),
 (77, 55, '2025-09-11', '7:52', '5:21', 'Added a simple function to the static system we created and connected it to a database. Then we set up PCs/laptops in their meeting/training room.', '8.00', '8.00', '8.00', '2025-09-11 10:14:48'),
 (78, 55, '2025-09-12', '7:57', '5:07', 'I began by designing a simple login page UI in Figma.', '8.00', '8.00', '8.00', '2025-09-12 10:14:48'),
-(80, 55, '2025-11-06', '07:47', '17:47', 'fwafafwaf', '8.00', '8.00', '8.00', '2025-11-06 13:47:25'),
-(81, 55, '2025-09-15', '07:57', '17:03', 'Awal', '8.00', '8.00', '8.00', '2025-11-06 14:01:44');
+(80, 55, '2025-11-06', '07:49', '17:03', 'Finalized modals functionalities and simplified all buttons too much glowing effect.', '8.00', '8.00', '8.00', '2025-11-06 16:43:44'),
+(81, 55, '2025-09-15', '07:59', '17:07', 'I created the homepage design along with the modal components.', '8.00', '8.00', '8.00', '2025-11-06 15:07:43'),
+(82, 55, '2025-11-03', '07:52', '17:05', 'Aligned the design of the admin system with our main system, including colors and other design elements.', '8.00', '8.00', '8.00', '2025-11-06 16:37:47'),
+(85, 55, '2025-09-17', '07:50', '17:10', 'We have now started converting my UI designs into html, css, and python. And troubleshoot 2 PCs.', '8.00', '8.00', '8.00', '2025-11-06 15:07:04'),
+(86, 44, '2025-11-05', '07:56', '17:06', 'creating a user manual and admin manual and fixing the insert data on profile in the server  ', '8.00', '8.00', '8.00', '2025-11-06 15:50:35'),
+(87, 44, '2025-11-06', '07:37', '17:03', 'Add a “Select Date” and “Select Week” option to the Fill Out Form and Official Time Form to allow users to update or insert data for previous weeks in the weekly report.', '8.00', '8.00', '8.00', '2025-11-07 08:37:52'),
+(88, 55, '2025-09-18', '07:49', '17:08', 'I do the front-end of our log in page, including the labels, logos, and textboxes.', '8.00', '8.00', '8.00', '2025-11-06 16:25:03'),
+(89, 55, '2025-09-19', '07:22', '17:19', 'Worked on the front-end of the homepage, along with the notification messages and validations. ', '8.00', '8.00', '8.00', '2025-11-06 16:27:46'),
+(90, 55, '2025-09-22', '07:53', '17:02', 'Fixed UI bugs, button click issues, and improved component layout in design.', '8.00', '8.00', '8.00', '2025-11-06 16:29:41'),
+(91, 55, '2025-09-24', '07:51', '17:01', 'Assisted in fixing backend, especially error handling in login. ', '8.00', '8.00', '8.00', '2025-11-06 16:30:38'),
+(92, 55, '2025-09-29', '07:41', '17:21', 'I fixed the alignment of the buttons and improved their designs.', '8.00', '8.00', '8.00', '2025-11-06 16:30:45'),
+(93, 55, '2025-09-25', '07:21', '17:10', 'Cleaned frontend modal design and fixed textboxes/layout inside. Then we set up PCs/laptops in their meeting/training room.', '8.00', '8.00', '8.00', '2025-11-06 16:31:15'),
+(94, 55, '2025-10-01', '07:58', '17:03', 'I updated the input elements in the official time session. I used a date picker instead of textbox. I also created a new placement for other fields .', '8.00', '8.00', '8.00', '2025-11-06 16:31:27'),
+(95, 55, '2025-09-26', '07:36', '17:12', 'Assisted in integrating the database with the modals I refined.', '8.00', '8.00', '8.00', '2025-11-06 16:32:09'),
+(96, 55, '2025-10-02', '07:25', '17:03', 'We set up PCs/laptops that will be used for their board meeting. I connected the new back-end to the improved front-end that I created.', '8.00', '8.00', '8.00', '2025-11-06 16:32:30'),
+(97, 55, '2025-10-06', '07:34', '17:03', 'I added a print feature to the system and modified the design of an entire modal to make it less hassle for the user.', '8.00', '8.00', '8.00', '2025-11-06 16:32:53'),
+(98, 55, '2025-10-03', '07:22', '17:11', 'I also assisted again in the training room to set up their PCs/laptops. I fixed the errors and bugs that appeared when we connected my new design with the back end.', '8.00', '8.00', '8.00', '2025-11-06 16:33:02'),
+(99, 55, '2025-10-08', '07:32', '17:11', 'Fixed the section related to the official time to make data insertion easier.', '8.00', '8.00', '8.00', '2025-11-06 16:33:37'),
+(100, 55, '2025-10-13', '07:59', '17:05', 'I standardized the alignment of the fields and made adjustments to the equipment in our server room.', '8.00', '8.00', '8.00', '2025-11-06 16:33:39'),
+(101, 55, '2025-10-15', '07:40', '17:04', 'Fixed the uneven buttons, labels, and icons in our system.', '8.00', '8.00', '8.00', '2025-11-06 16:34:05'),
+(102, 55, '2025-10-09', '07:53', '17:01', 'I redesigned some parts of the system, such as the color palette, to make them more consistent. I also repositioned buttons and other elements where they should be.', '8.00', '8.00', '8.00', '2025-11-06 16:34:07'),
+(103, 55, '2025-10-10', '07:38', '17:07', 'I integrated the analytics page created by my teammate, adjusted the alignments, and matched its design with the rest of the system.', '8.00', '8.00', '8.00', '2025-11-06 16:34:55'),
+(104, 55, '2025-10-16', '07:47', '17:20', 'Adjusted the colors of the elements, such as buttons, to ensure proper color matching, including transitions and animations.', '8.00', '8.00', '8.00', '2025-11-06 16:34:47'),
+(105, 55, '2025-10-17', '07:52', '17:13', 'Resolved issues with the print feature, such as broken or misaligned designs when printing.\r\n', '8.00', '8.00', '8.00', '2025-11-06 16:35:16'),
+(106, 55, '2025-10-20', '07:58', '17:22', 'I worked on the validation of the fields in the fill-out form modal, and we had an initial system checking with our supervisor.', '8.00', '8.00', '8.00', '2025-11-06 16:35:29'),
+(107, 55, '2025-10-27', '07:59', '17:08', 'Assisted in the production process by operating a semi-automatic calling card cutter to prepare their calling cards.', '8.00', '8.00', '8.00', '2025-11-06 16:35:49'),
+(108, 55, '2025-10-22', '07:59', '17:09', 'Adjusted the design based on the revisions requested by our supervisor and set up and troubleshoot PC’s in the finance department', '8.00', '8.00', '8.00', '2025-11-06 16:36:07'),
+(109, 55, '2025-10-29', '07:57', '17:11', 'Set up computers and connected our developed system to the company’s server', '8.00', '8.00', '8.00', '2025-11-06 16:36:24'),
+(110, 55, '2025-10-23', '07:54', '17:10', 'Created and completed all the system diagrams such as ERD, DFD, and System Flowchart', '8.00', '8.00', '8.00', '2025-11-06 16:36:47'),
+(111, 55, '2025-10-30', '07:20', '17:36', 'Developed the admin module of the system, handling front-end design and functionality.\r\n', '8.00', '8.00', '8.00', '2025-11-06 16:36:55'),
+(112, 55, '2025-10-24', '07:43', '17:02', 'Finalized the entire system and performed debugging, including minor adjustments to functionalities.', '8.00', '8.00', '8.00', '2025-11-06 16:38:21'),
+(113, 55, '2025-11-05', '07:56', '17:06', 'Modified some functionalities of the password recovery modal and added a “Forgot Password” feature to the login page of the admin system.', '8.00', '8.00', '8.00', '2025-11-06 16:38:51'),
+(114, 44, '2025-11-07', '07:43', '17:07', 'Wala', '8.00', '8.00', '8.00', '2025-11-07 08:39:32');
 
 --
 -- Indexes for dumped tables
@@ -1007,13 +1051,13 @@ ALTER TABLE `weekly_accomplishments`
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=760;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=778;
 
 --
 -- AUTO_INCREMENT for table `official_time`
 --
 ALTER TABLE `official_time`
-  MODIFY `official_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=355;
+  MODIFY `official_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=373;
 
 --
 -- AUTO_INCREMENT for table `sessions`
@@ -1037,7 +1081,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `weekly_accomplishments`
 --
 ALTER TABLE `weekly_accomplishments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=82;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=115;
 
 --
 -- Constraints for dumped tables
