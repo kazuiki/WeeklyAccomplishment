@@ -1664,6 +1664,30 @@ body::before {
   border: 3px solid var(--border-color);
 }
 
+/* Gentle reminder outline for missing profile image on submit */
+#editProfileModal .form-group.file-input.missing-image .current-image {
+  /* subtle ring without changing existing border */
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.4);
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+/* Minimal glow per click on Save (replayable) */
+@keyframes outline-pulse {
+  0%   { box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.25); }
+  50%  { box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.5); }
+  100% { box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.4); }
+}
+
+#editProfileModal .form-group.file-input.missing-image.pulsing .current-image {
+  animation: outline-pulse 300ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #editProfileModal .form-group.file-input.missing-image.pulsing .current-image {
+    animation: none;
+  }
+}
+
 .form-group.file-input label[for="profile_picture"] {
   color: var(--primary-main);
   cursor: pointer;
@@ -1672,6 +1696,28 @@ body::before {
   border-radius: 6px;
   text-align: center;
   transition: all 0.3s ease;
+}
+
+/* Gentle reminder for Choose Profile Picture button when image is missing */
+#editProfileModal .form-group.file-input.missing-image label[for="profile_picture"] {
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.4);
+}
+
+/* Pulse animation for button border on each click */
+@keyframes button-border-pulse {
+  0%   { box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.25); }
+  50%  { box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.5); }
+  100% { box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.4); }
+}
+
+#editProfileModal .form-group.file-input.missing-image.pulsing label[for="profile_picture"] {
+  animation: button-border-pulse 300ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #editProfileModal .form-group.file-input.missing-image.pulsing label[for="profile_picture"] {
+    animation: none;
+  }
 }
 
 .form-group.file-input label[for="profile_picture"]:hover {
