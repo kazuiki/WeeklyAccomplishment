@@ -124,12 +124,18 @@ function fmt_time($t) {
 
     .ts-table { width: 100%; border-collapse: collapse; }
     .ts-table th, .ts-table td {
-        border: 2px solid var(--line);
+        border: 1px solid var(--line);
         padding: 8px 10px;
         font-size: 13px;
         vertical-align: top;
     }
-    .ts-table th { color: #0f2f53; font-weight: 700; }
+    .ts-table th { color: inherit; font-weight: 400; }
+    /* Only these specific headers should be navy */
+    .ts-table th.col-date,
+    .ts-table th.col-time,
+    .ts-table th.col-rendered,
+    .ts-table th.col-remarks,
+    .ts-table th.head-activity { color: navy; font-weight: 900; }
     .ts-table tr { page-break-inside: avoid; break-inside: avoid; }
 
     .top-meta th { text-align: center; font-weight: 600; }
@@ -205,7 +211,7 @@ function fmt_time($t) {
             </tr>
             <tr class="group-head">
                 <th colspan="3">Timesheet</th>
-                <th colspan="1">Activity Details</th>
+                <th colspan="1" class="head-activity">Activity Details</th>
                 <th colspan="1">Time Summary</th>
                 <th colspan="1"></th>
             </tr>
