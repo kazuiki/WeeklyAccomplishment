@@ -142,20 +142,21 @@ $result = $conn->query($query);
         .students-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            gap: 20px; /* increase spacing between cards */
         }
         
         .student-card {
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 15px;
+            width: 105%;
             box-shadow: 0 2px 10px rgba(44, 94, 143, 0.08);
             transition: all 0.3s ease;
             text-decoration: none;
             color: inherit;
             display: block;
             position: relative;
-            border-left: 4px solid #5A9BD5;
+            border-left: 2px solid #5A9BD5;
         }
         
         .student-card.inactive {
@@ -183,6 +184,8 @@ $result = $conn->query($query);
         .student-avatar {
             width: 60px;
             height: 60px;
+            flex: 0 0 60px; /* prevent flex stretching/shrinking */
+            aspect-ratio: 1 / 1; /* ensure square box */
             background: linear-gradient(135deg, #5A9BD5 0%, #2C5E8F 100%);
             border-radius: 50%;
             display: flex;
@@ -192,6 +195,17 @@ $result = $conn->query($query);
             color: white;
             font-weight: bold;
             position: relative;
+            /* allow status indicator to render fully outside the circle edge */
+            overflow: visible;
+        }
+
+        /* Ensure image inside avatar always fills square and stays circular */
+        .student-avatar img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
         }
         
         .session-status-indicator {
@@ -206,7 +220,7 @@ $result = $conn->query($query);
             align-items: center;
             justify-content: center;
             font-size: 10px;
-            z-index: 2;
+            z-index: 3;
         }
         
         .session-status-indicator.active {
@@ -221,6 +235,7 @@ $result = $conn->query($query);
         
         .student-info {
             flex: 1;
+            min-width: 0; /* allow long content to wrap instead of pushing avatar */
         }
         
         .student-name {
@@ -233,6 +248,15 @@ $result = $conn->query($query);
         .student-email {
             font-size: 13px;
             color: #666;
+            white-space: normal;
+            line-height: 1.25;
+            overflow-wrap: anywhere; /* wrap very long emails */
+            word-break: break-word;   /* prefer breaking long tokens instead of overflow */
+            display: -webkit-box;     /* clamp to avoid awkward long tails */
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;    /* show up to 2 lines then ellipsis */
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .student-stats {
@@ -294,11 +318,7 @@ $result = $conn->query($query);
             border: 1px solid #f5c6cb;
             font-weight: bold;
         }
-        
-        .badge-inactive::before {
-            content: '🔴 ';
-            font-size: 10px;
-        }
+        /* Removed red dot prefix to restore simpler badge appearance */
         
         .no-students {
             text-align: center;
