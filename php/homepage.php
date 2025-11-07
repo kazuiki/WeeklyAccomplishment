@@ -918,6 +918,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Quezon City University - OJT Activity Log</title>
+    <link rel="icon" type="image/png" href="img/qcu.png">
         <link rel="stylesheet" href="css/homepage.css">
         <!-- Font Awesome for icons in the sidebar -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

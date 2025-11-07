@@ -114,6 +114,7 @@ function fmt_time($t) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DTR - Timesheet</title>
+<link rel="icon" type="image/png" href="img/qcu.png">
 <style>
     :root { --blue: #224c7b; --line: #224c7b; }
     * { box-sizing: border-box; }

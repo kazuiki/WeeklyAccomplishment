@@ -204,6 +204,7 @@ if ($week_total_pages > 1) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Details - <?php echo htmlspecialchars($user['username']); ?></title>
+    <link rel="icon" type="image/png" href="img/admin.png">
     <style>
         * {
             margin: 0;
