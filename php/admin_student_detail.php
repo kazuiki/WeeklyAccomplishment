@@ -254,6 +254,38 @@ if ($week_total_pages > 1) {
             max-width: 1400px;
             margin: 0 auto;
             padding: 30px;
+            padding-top: 20px;
+        }
+        
+        .back-button-container {
+            margin-bottom: 10px;
+            margin-left: 10px; 
+            margin-top: 10px;
+        }
+        
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 25px;
+            background: white;
+            border: 2px solid #5A9BD5;
+            border-radius: 50px;
+            color: #5A9BD5;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .back-button:hover {
+            background: #5A9BD5;
+            color: white;
+        }
+        
+        .back-button svg {
+            width: 18px;
+            height: 18px;
         }
         
         .user-header {
@@ -415,8 +447,17 @@ if ($week_total_pages > 1) {
         </h1>
         <a href="admin_dashboard.php" class="back-btn">← Back to Dashboard</a>
     </nav>
+    <!-- Back Button -->
+    <div class="back-button-container">
+        <a href="admin_students.php" class="back-button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back
+        </a>
+    </div>
     
-    <div class="container">
+    <div class="container">    
         <!-- User Header -->
         <div class="user-header">
             <div class="user-info">
