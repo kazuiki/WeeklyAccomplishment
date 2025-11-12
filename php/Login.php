@@ -1112,7 +1112,7 @@ document.getElementById('adminLoginForm').addEventListener('submit', function(e)
     })
     .finally(() => {
         btn.disabled = false;
-        btn.textContent = 'Login as Admin';
+        btn.textContent = 'Logging in';
     });
 });
 

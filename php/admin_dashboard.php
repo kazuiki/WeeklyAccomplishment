@@ -294,7 +294,7 @@ $stats = $stats_result->fetch_assoc();
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 30px;
+            padding: 18px;
         }
         
         .stats-grid {
