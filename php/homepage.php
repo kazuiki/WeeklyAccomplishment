@@ -15,7 +15,7 @@ $initialWeek = date('W');
 $initialYear = date('Y');
 $initialRangeStart = null; // used later for JS range formatting
 try {
-    $uid = $_SESSION['user_id'] ?? null;
+    $uid = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
     if ($uid) {
         $uStmt = $conn->prepare("SELECT is_new, created_at FROM users WHERE user_id = ? LIMIT 1");
         if ($uStmt) {
@@ -49,15 +49,121 @@ try {
     // swallow errors and fallback to current week
 }
 
-// ---------- AJAX: load_today / save_form ----------
+// ---------- AJAX: load_today / load_by_date / save_form ----------
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
     header('Content-Type: application/json; charset=utf-8');
-    $response = ["status" => "error", "message" => ""];
+    $response = array("status" => "error", "message" => "");
 
     $user_id = $_SESSION["user_id"];
     $today = date("Y-m-d");
 
-    if ($_POST["ajax"] === "load_today") {
+    // Load a specific date's accomplishment for the logged-in user
+    if ($_POST["ajax"] === "load_by_date") {
+        try {
+            $date_record = isset($_POST['date_record']) ? trim($_POST['date_record']) : $today;
+            // basic YYYY-MM-DD validation
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_record)) {
+                $date_record = $today;
+            }
+
+            $sql = "SELECT time_in, time_out, task_completed
+                    FROM weekly_accomplishments
+                    WHERE users_user_id = ? AND DATE(date_record) = ?
+                    LIMIT 1";
+
+            if ($stmt = $conn->prepare($sql)) {
+                $stmt->bind_param('is', $user_id, $date_record);
+                $stmt->execute();
+                $stmt->bind_result($time_in, $time_out, $task_completed);
+                $row = array();
+                $exists = false;
+                if ($stmt->fetch()) {
+                    $exists = true;
+                    $row = array(
+                        'time_in' => $time_in,
+                        'time_out' => $time_out,
+                        'task_completed' => $task_completed
+                    );
+                }
+                $stmt->close();
+                $response["status"] = "success";
+                $response["data"] = $row;
+                $response["date_record"] = $date_record;
+                $response["exists"] = $exists;
+            } else {
+                throw new Exception("DB prepare failed");
+            }
+        } catch (Exception $ex) {
+            $response["status"] = "error";
+            $response["message"] = "Failed to load record: " . $ex->getMessage();
+        }
+        echo json_encode($response);
+        exit();
+    }
+
+    // Load official_time for a specific date (find the week that contains this date)
+    if ($_POST["ajax"] === "load_official_by_date") {
+        try {
+            $official_date = isset($_POST['official_date']) ? trim($_POST['official_date']) : $today;
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $official_date)) {
+                $official_date = $today;
+            }
+
+            // Compute the week (Monday-Saturday) that contains this date
+            $dateDt = new DateTime($official_date, new DateTimeZone('Asia/Manila'));
+            $dayOfWeek = $dateDt->format('N'); // 1=Mon, 7=Sun
+            
+            // Find Monday of this week
+            if ($dayOfWeek == 7) {
+                // Sunday - go to next Monday
+                $mondayDt = clone $dateDt;
+                $mondayDt->modify('+1 day');
+            } else {
+                $mondayDt = clone $dateDt;
+                $diff = $dayOfWeek - 1; // days since Monday
+                if ($diff > 0) {
+                    $mondayDt->modify("-{$diff} days");
+                }
+            }
+            
+            // Saturday is Monday + 5 days
+            $saturdayDt = clone $mondayDt;
+            $saturdayDt->modify('+5 days');
+            
+            $weekStart = $mondayDt->format('Y-m-d');
+            $weekEnd = $saturdayDt->format('Y-m-d');
+
+            // Query official_time where created_at falls within this week
+            $sql = "SELECT day_date, day_time
+                    FROM official_time
+                    WHERE users_user_id = ? AND DATE(created_at) BETWEEN ? AND ?
+                    ORDER BY official_id ASC";
+
+            $official_data = array();
+            if ($stmt = $conn->prepare($sql)) {
+                $stmt->bind_param('iss', $user_id, $weekStart, $weekEnd);
+                $stmt->execute();
+                $stmt->bind_result($day_date, $day_time);
+                while ($stmt->fetch()) {
+                    $dayKey = strtolower(trim($day_date));
+                    $official_data[$dayKey] = $day_time;
+                }
+                $stmt->close();
+            }
+
+            $response["status"] = "success";
+            $response["data"] = $official_data;
+            $response["official_date"] = $official_date;
+            $response["week_start"] = $weekStart;
+            $response["week_end"] = $weekEnd;
+            $response["exists"] = count($official_data) > 0;
+        } catch (Exception $ex) {
+            $response["status"] = "error";
+            $response["message"] = "Failed to load official times: " . $ex->getMessage();
+        }
+        echo json_encode($response);
+        exit();
+    }    if ($_POST["ajax"] === "load_today") {
         // Get selected week from POST
         $selectedWeek = isset($_POST["week"]) ? intval($_POST["week"]) : date('W');
         $selectedYear = isset($_POST["year"]) ? intval($_POST["year"]) : date('Y');
@@ -77,10 +183,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
         if ($stmt = $conn->prepare($sql)) {
             $stmt->bind_param("iii", $user_id, $selectedWeek, $selectedYear);
             $stmt->execute();
-            $result = $stmt->get_result();
+            $stmt->bind_result($id, $user_id_col, $week_col, $year_col, $task_completed, $time_in, $time_out, $created_at, $updated_at);
            
             $response["status"] = "success";
-            $row = $result->fetch_assoc() ?: [];
+            if ($stmt->fetch()) {
+                $row = array(
+                    'id' => $id,
+                    'user_id' => $user_id_col,
+                    'week' => $week_col,
+                    'year' => $year_col,
+                    'task_completed' => $task_completed,
+                    'time_in' => $time_in,
+                    'time_out' => $time_out,
+                    'created_at' => $created_at,
+                    'updated_at' => $updated_at
+                );
+            } else {
+                $row = array();
+            }
            
             // Load official times for selected week
             // Compute Monday..Saturday date range for the selected ISO week so
@@ -108,12 +228,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
             if ($otStmt = $conn->prepare($officialSql)) {
                 $otStmt->bind_param("issss", $user_id, $startDate, $endDate, $startDate, $endDate);
                 $otStmt->execute();
-                $otResult = $otStmt->get_result();
+                $otStmt->bind_result($official_id, $day_date_real, $day_date, $day_time, $created_at);
 
-                while ($otRow = $otResult->fetch_assoc()) {
+                while ($otStmt->fetch()) {
                     // Prefer the real date column when available
-                    $rawDate = $otRow['day_date_real'];
-                    $rawText = $otRow['day_date'];
+                    $rawDate = $day_date_real;
+                    $rawText = $day_date;
                     if (!empty($rawDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
                         $wk = strtolower(date('D', strtotime($rawDate))); // Mon -> mon
                         $day = $wk;
@@ -125,8 +245,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                     // normalize to expected keys and set response fields
                     if (!empty($day)) {
                         $rowKey = "official_" . $day;
-                        $row[$rowKey] = $otRow['day_time'];
-                        $row[$rowKey . "_id"] = $otRow['official_id'];
+                        $row[$rowKey] = $day_time;
+                        $row[$rowKey . "_id"] = $official_id;
                     }
                 }
                 $otStmt->close();
@@ -151,6 +271,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
            
             $selectedWeek = isset($_POST["week"]) ? intval($_POST["week"]) : date('W');
             $selectedYear = isset($_POST["year"]) ? intval($_POST["year"]) : date('Y');
+            // Use selected date if provided (for daily accomplishment save)
+            $selectedDate = isset($_POST['date_record']) ? trim($_POST['date_record']) : $today;
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)) {
+                $selectedDate = $today;
+            }
            
             // Check if this is the current week (for edit permissions)
             $currentWeek = date('W');
@@ -160,13 +285,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
             // DEBUG: Log what we received
             error_log("DEBUG - Received data:");
             error_log("Week: $selectedWeek, Year: $selectedYear");
-            error_log("Time In: " . ($_POST['time_in'] ?? 'NOT SET'));
-            error_log("Time Out: " . ($_POST['time_out'] ?? 'NOT SET'));
-            error_log("Task: " . ($_POST['task_completed'] ?? 'NOT SET'));
+            error_log("Time In: " . (isset($_POST['time_in']) ? $_POST['time_in'] : 'NOT SET'));
+            error_log("Time Out: " . (isset($_POST['time_out']) ? $_POST['time_out'] : 'NOT SET'));
+                error_log("Time Out Calc: " . (isset($_POST['time_out_calc']) ? $_POST['time_out_calc'] : 'NOT SET'));
+            error_log("Task: " . (isset($_POST['task_completed']) ? $_POST['task_completed'] : 'NOT SET'));
            
             foreach (['mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as $day) {
                 $key = "official_" . $day;
-                error_log("$key: " . ($_POST[$key] ?? 'NOT SET'));
+                error_log("$key: " . (isset($_POST[$key]) ? $_POST[$key] : 'NOT SET'));
             }
 
             // Optional server-side validation of Fill Out Form times (AM for time_in, PM for time_out)
@@ -210,7 +336,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
 
             // Save weekly accomplishment first (only if form provided time/task fields)
             $user_id = $_SESSION["user_id"];
-            $today = date('Y-m-d');
 
             if (isset($_POST['time_in']) || isset($_POST['time_out']) || isset($_POST['task_completed'])) {
                 // First check if entry exists for today
@@ -219,11 +344,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                              AND DATE(date_record) = ?";
            
                 $check_stmt = $conn->prepare($check_sql);
-                $check_stmt->bind_param("is", $user_id, $today);
+                $check_stmt->bind_param("is", $user_id, $selectedDate);
                 $check_stmt->execute();
-                $result = $check_stmt->get_result();
+                $check_stmt->bind_result($existing_id);
+                $exists = $check_stmt->fetch();
+                $check_stmt->close();
            
-                if ($result->num_rows > 0) {
+                if ($exists) {
                     // Update existing record
                     $update_sql = "UPDATE weekly_accomplishments
                                  SET time_in = ?,
@@ -236,43 +363,47 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                                  WHERE users_user_id = ?
                                  AND DATE(date_record) = ?";
                
+                    // Prefer the calculated capped time-out for duration calculations,
+                    // but still save the user-entered time_out into the DB so UI reflects what user typed.
+                    $time_out_for_calc = isset($_POST['time_out_calc']) && $_POST['time_out_calc'] !== '' ? $_POST['time_out_calc'] : (isset($_POST['time_out']) ? $_POST['time_out'] : null);
+
                     $stmt = $conn->prepare($update_sql);
                     $stmt->bind_param("sssssssssss",
                         $_POST['time_in'],
                         $_POST['time_out'],
                         $_POST['task_completed'],
                         $_POST['time_in'],
-                        $_POST['time_out'],
+                        $time_out_for_calc,
                         $_POST['time_in'],
-                        $_POST['time_out'],
+                        $time_out_for_calc,
                         $_POST['time_in'],
-                        $_POST['time_out'],
+                        $time_out_for_calc,
                         $user_id,
-                        $today
+                        $selectedDate
                     );
                 } else {
                     // Insert new record for today only
                     $insert_sql = "INSERT INTO weekly_accomplishments
                                   (users_user_id, date_record, time_in, time_out, task_completed,
                                    total_hours, total, grand_total, last_updated_at)
-                                  VALUES (?, CURDATE(), ?, ?, ?,
-                                          TIMESTAMPDIFF(HOUR, CONCAT(CURDATE(), ' ', ?), CONCAT(CURDATE(), ' ', ?)),
-                                          TIMESTAMPDIFF(HOUR, CONCAT(CURDATE(), ' ', ?), CONCAT(CURDATE(), ' ', ?)),
-                                          TIMESTAMPDIFF(HOUR, CONCAT(CURDATE(), ' ', ?), CONCAT(CURDATE(), ' ', ?)),
+                                  VALUES (?, ?, ?, ?, ?,
+                                          TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
+                                          TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
+                                          TIMESTAMPDIFF(HOUR, CONCAT(?, ' ', ?), CONCAT(?, ' ', ?)),
                                           NOW())";
                
+                    $time_out_for_calc = isset($_POST['time_out_calc']) && $_POST['time_out_calc'] !== '' ? $_POST['time_out_calc'] : (isset($_POST['time_out']) ? $_POST['time_out'] : null);
+
                     $stmt = $conn->prepare($insert_sql);
-                    $stmt->bind_param("isssssssss",
+                    $stmt->bind_param("issssssssssssssss",
                         $user_id,
+                        $selectedDate,
                         $_POST['time_in'],
                         $_POST['time_out'],
                         $_POST['task_completed'],
-                        $_POST['time_in'],
-                        $_POST['time_out'],
-                        $_POST['time_in'],
-                        $_POST['time_out'],
-                        $_POST['time_in'],
-                        $_POST['time_out']
+                        $selectedDate, $_POST['time_in'], $selectedDate, $time_out_for_calc,
+                        $selectedDate, $_POST['time_in'], $selectedDate, $time_out_for_calc,
+                        $selectedDate, $_POST['time_in'], $selectedDate, $time_out_for_calc
                     );
                 }
            
@@ -282,9 +413,80 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                 $stmt->close();
             }
            
+            // SAVE OFFICIAL TIMES - use selected date from schedule modal if provided
+            // Insert per WEEK (Mon-Sat created on the same date = Monday of the week)
+            $official_date_select = isset($_POST['official_date_select']) ? trim($_POST['official_date_select']) : null;
+            
+            if ($official_date_select && preg_match('/^\d{4}-\d{2}-\d{2}$/', $official_date_select)) {
+                // Compute the Monday of the week containing this date
+                $dateDt = new DateTime($official_date_select, new DateTimeZone('Asia/Manila'));
+                $dayOfWeek = $dateDt->format('N'); // 1=Mon, 7=Sun
+                
+                // Find Monday of this week
+                if ($dayOfWeek == 7) {
+                    // Sunday - go to next Monday
+                    $mondayDt = clone $dateDt;
+                    $mondayDt->modify('+1 day');
+                } else {
+                    $mondayDt = clone $dateDt;
+                    $diff = $dayOfWeek - 1;
+                    if ($diff > 0) {
+                        $mondayDt->modify("-{$diff} days");
+                    }
+                }
+                
+                $saturdayDt = clone $mondayDt;
+                $saturdayDt->modify('+5 days');
+                
+                $weekStart = $mondayDt->format('Y-m-d');
+                $weekEnd = $saturdayDt->format('Y-m-d');
+                
+                // Use Monday as the created_at timestamp for ALL days in this week
+                $weekCreatedAt = $weekStart;
+                
+                $days = array('mon', 'tue', 'wed', 'thu', 'fri', 'sat');
+                
+                foreach ($days as $day) {
+                    $post_key = "official_" . $day;
+                    $official_time = trim((string)(isset($_POST[$post_key]) ? $_POST[$post_key] : ''));
+                    $dayEnum = strtoupper(substr($day, 0, 3)); // MON, TUE, etc.
+
+                    // Check if record exists for this user + day + week (created_at between Mon-Sat)
+                    $check_sql = "SELECT official_id FROM official_time 
+                                  WHERE users_user_id = ? AND day_date = ? 
+                                  AND DATE(created_at) BETWEEN ? AND ?
+                                  LIMIT 1";
+                    $check_stmt = $conn->prepare($check_sql);
+                    $check_stmt->bind_param('isss', $user_id, $dayEnum, $weekStart, $weekEnd);
+                    $check_stmt->execute();
+                    $check_stmt->bind_result($existing_official_id);
+                    $exists_official = $check_stmt->fetch();
+                    $check_stmt->close();
+
+                    if ($exists_official) {
+                        // Update existing official_time record
+                        $update_official_sql = "UPDATE official_time SET day_time = ?, updated_at = NOW()
+                                                WHERE official_id = ?";
+                        $update_stmt = $conn->prepare($update_official_sql);
+                        $update_stmt->bind_param('si', $official_time, $existing_official_id);
+                        $update_stmt->execute();
+                        $update_stmt->close();
+                    } else {
+                        // Insert new record with created_at = Monday of this week
+                        // This ensures all Mon-Sat for this week share the same created_at week marker
+                        $insert_official_sql = "INSERT INTO official_time 
+                                                (users_user_id, day_date, day_time, created_at, updated_at)
+                                                VALUES (?, ?, ?, ?, NOW())";
+                        $insert_stmt = $conn->prepare($insert_official_sql);
+                        $insert_stmt->bind_param('isss', $user_id, $dayEnum, $official_time, $weekCreatedAt);
+                        $insert_stmt->execute();
+                        $insert_stmt->close();
+                    }
+                }
+            } else {
             // SAVE OFFICIAL TIMES - store by actual date for the selected ISO week
             // This avoids updating textual 'Mon'/'Tue' rows (which used created_at as the week marker)
-            $days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+            $days = array('mon', 'tue', 'wed', 'thu', 'fri', 'sat');
             // compute the Monday date for the selected ISO week/year
             try {
                 $mondayDt = new DateTime();
@@ -306,7 +508,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                 // Always attempt to process every weekday. Use null-coalesce so
                 // missing POST keys become empty strings; this ensures Mon..Sat
                 // rows are created (or updated) as needed.
-                $official_time = trim((string)($_POST[$post_key] ?? ''));
+                $official_time = trim((string)(isset($_POST[$post_key]) ? $_POST[$post_key] : ''));
 
                     // compute the exact date (Y-m-d) for this weekday in the selected ISO week
                     $dayDt = clone $mondayDt;
@@ -338,7 +540,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                             $r1 = $s1->get_result();
                             if ($rr = $r1->fetch_assoc()) {
                                 $existingExactId = $rr['official_id'];
-                                $existingExactCreatedAt = $rr['created_at'] ?? null;
+                                $existingExactCreatedAt = isset($rr['created_at']) ? $rr['created_at'] : null;
                             }
                             $s1->close();
                         } else {
@@ -396,7 +598,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                         }
                     }
 
-                    error_log('[official_time SAVE] foundExact=' . ($existingExactId ?? 'none') . ' foundTextual=' . ($existingTextualId ?? 'none'));
+                    error_log('[official_time SAVE] foundExact=' . (isset($existingExactId) ? $existingExactId : 'none') . ' foundTextual=' . (isset($existingTextualId) ? $existingTextualId : 'none'));
 
                     // Decide action based on findings
                     if ($existingExactId !== null) {
@@ -434,12 +636,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
                                 error_log('[official_time SAVE] insert execute failed: ' . $insert_stmt->error);
                             }
                             $insert_stmt->close();
-                            error_log("Inserted new official time for $dayDateStr: $official_time (textual/blank existingId=" . ($existingTextualId ?? 'none') . ")");
+                            error_log("Inserted new official time for $dayDateStr: $official_time (textual/blank existingId=" . (isset($existingTextualId) ? $existingTextualId : 'none') . ")");
                         } else {
                             error_log('[official_time SAVE] prepare failed (insert): ' . $conn->error);
                         }
                 }
             }
+            } // end of else block for week-based official_time save
 
             // Add this code to handle company update
             if (isset($_POST['company']) && !empty($_POST['company'])) {
@@ -468,6 +671,43 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"])) {
         echo json_encode($response);
         exit();
     }
+
+    // AJAX: verify AFK password
+    if ($_POST["ajax"] === "verify_afk_password") {
+        $password = isset($_POST["password"]) ? $_POST["password"] : '';
+        $user_id = $_SESSION["user_id"];
+       
+        if (empty($password)) {
+            $response["status"] = "error";
+            $response["message"] = "Password is required";
+        } else {
+            // Get user's password from database
+            $stmt = $conn->prepare("SELECT password FROM users WHERE user_id = ?");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $stmt->store_result();
+           
+            if ($stmt->num_rows > 0) {
+                $stmt->bind_result($db_password);
+                $stmt->fetch();
+               
+                if (password_verify($password, $db_password)) {
+                    $response["status"] = "success";
+                    $response["message"] = "Session resumed successfully";
+                } else {
+                    $response["status"] = "error";
+                    $response["message"] = "Invalid password";
+                }
+            } else {
+                $response["status"] = "error";
+                $response["message"] = "User not found";
+            }
+            $stmt->close();
+        }
+       
+        echo json_encode($response);
+        exit();
+    }
 }
 
 // ---------- PROFILE UPDATE (multipart POST) ----------
@@ -487,7 +727,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_fn"])) {
 
     if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
         $file_extension = strtolower(pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION));
-        $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+        $allowed_extensions = array('jpg', 'jpeg', 'png', 'gif');
 
         if (in_array($file_extension, $allowed_extensions)) {
             $image_data = file_get_contents($_FILES['profile_picture']['tmp_name']);
@@ -522,9 +762,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_fn"])) {
         $update_student->execute();
         $update_student->close();
     } else {
-        $insert_student = $conn->prepare("INSERT INTO student_info (users_user_id, student_fn, student_mi, student_ln, student_course, student_year, profile_picture, profile_picture_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $insert_student->bind_param("isssssss", $user_id, $student_fn, $student_mi, $student_ln, $student_course, $student_year, $profile_picture, $profile_picture_type);
-        $insert_student->execute();
+        // INSERT with default values for NOT NULL fields
+        $default_profile_picture = '';
+        $default_profile_picture_type = '';
+        
+        if ($profile_picture !== null && $profile_picture_type !== null) {
+            $insert_student = $conn->prepare("INSERT INTO student_info (users_user_id, student_fn, student_mi, student_ln, student_course, student_year, profile_picture, profile_picture_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $insert_student->bind_param("isssssss", $user_id, $student_fn, $student_mi, $student_ln, $student_course, $student_year, $profile_picture, $profile_picture_type);
+        } else {
+            $insert_student = $conn->prepare("INSERT INTO student_info (users_user_id, student_fn, student_mi, student_ln, student_course, student_year, profile_picture, profile_picture_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $insert_student->bind_param("isssssss", $user_id, $student_fn, $student_mi, $student_ln, $student_course, $student_year, $default_profile_picture, $default_profile_picture_type);
+        }
+        
+        if (!$insert_student->execute()) {
+            error_log("Insert failed: " . $insert_student->error);
+            die("Insert failed: " . $insert_student->error);
+        }
         $insert_student->close();
     }
     $check_student->close();
@@ -549,9 +802,13 @@ $existing = null;
 if ($pref = $conn->prepare("SELECT time_in, time_out, task_completed FROM weekly_accomplishments WHERE users_user_id = ? AND date_record = ? LIMIT 1")) {
     $pref->bind_param("is", $user_id, $date_today);
     $pref->execute();
-    $prefRes = $pref->get_result();
-    if ($prefRes && $prefRes->num_rows > 0) {
-        $existing = $prefRes->fetch_assoc();
+    $pref->bind_result($time_in, $time_out, $task_completed);
+    if ($pref->fetch()) {
+        $existing = array(
+            'time_in' => $time_in,
+            'time_out' => $time_out, 
+            'task_completed' => $task_completed
+        );
     }
     $pref->close();
 }
@@ -564,11 +821,10 @@ $username = null;
 if ($email_query = $conn->prepare("SELECT email, username FROM users WHERE user_id = ?")) {
     $email_query->bind_param("i", $user_id);
     $email_query->execute();
-    $email_result = $email_query->get_result();
-    if ($email_result && $email_result->num_rows > 0) {
-        $user_data = $email_result->fetch_assoc();
-        $user_email = $user_data['email'];
-        $username = $user_data['username'];
+    $email_query->bind_result($email, $db_username);
+    if ($email_query->fetch()) {
+        $user_email = $email;
+        $username = $db_username;
     }
     $email_query->close();
 }
@@ -576,17 +832,23 @@ if ($email_query = $conn->prepare("SELECT email, username FROM users WHERE user_
 if ($student_query = $conn->prepare("SELECT student_fn, student_mi, student_ln, student_course, student_year FROM student_info WHERE users_user_id = ?")) {
     $student_query->bind_param("i", $user_id);
     $student_query->execute();
-    $student_result = $student_query->get_result();
-    if ($student_result && $student_result->num_rows > 0) {
-        $user_profile = $student_result->fetch_assoc();
+    $student_query->bind_result($student_fn, $student_mi, $student_ln, $student_course, $student_year);
+    if ($student_query->fetch()) {
+        $user_profile = array(
+            'student_fn' => $student_fn,
+            'student_mi' => $student_mi,
+            'student_ln' => $student_ln,
+            'student_course' => $student_course,
+            'student_year' => $student_year
+        );
     }
     $student_query->close();
 }
 
 // Fetch official times
-$official_times = [
+$official_times = array(
     'MON' => '', 'TUE' => '', 'WED' => '', 'THU' => '', 'FRI' => '', 'SAT' => ''
-];
+);
 
 $current_week = date('W');
 $current_year = date('Y');
@@ -603,20 +865,22 @@ $endDt = clone $mondayDt;
 $endDt->modify('+5 days');
 $endDate = $endDt->format('Y-m-d');
 
-if ($oft = $conn->prepare("SELECT day_date, day_time, created_at FROM official_time WHERE users_user_id = ? AND ((day_date BETWEEN ? AND ?) OR (created_at BETWEEN ? AND ?)) ORDER BY official_id DESC")) {
+// Fetch official times for current week. Prefer the new exact date column when present
+// and use DATE(created_at) for consistent date-range checks (handles DATETIME values).
+if ($oft = $conn->prepare("SELECT day_date_real, day_date, day_time, created_at FROM official_time WHERE users_user_id = ? AND ((day_date_real BETWEEN ? AND ?) OR (DATE(created_at) BETWEEN ? AND ?)) ORDER BY official_id DESC")) {
     $oft->bind_param("issss", $user_id, $startDate, $endDate, $startDate, $endDate);
     $oft->execute();
-    $result = $oft->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $raw = $row['day_date'];
+    $oft->bind_result($day_date_real, $day_date, $day_time, $created_at);
+    while ($oft->fetch()) {
+        // Prefer real Y-m-d date when available, otherwise fall back to textual day value
+        $raw = !empty($day_date_real) ? $day_date_real : $day_date;
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
             $day = strtoupper(date('D', strtotime($raw)));
         } else {
-            // If textual day stored, still include it when created_at falls in the week
-            $day = strtoupper(substr($raw, 0, 3));
+            $day = strtoupper(substr((string)$raw, 0, 3));
         }
         if (array_key_exists($day, $official_times)) {
-            $official_times[$day] = htmlspecialchars($row['day_time']);
+            $official_times[$day] = htmlspecialchars($day_time);
         }
     }
     $oft->close();
@@ -627,10 +891,9 @@ $company_name = '';
 if ($infoq = $conn->prepare("SELECT company_name FROM student_info WHERE users_user_id = ? LIMIT 1")) {
     $infoq->bind_param("i", $user_id);
     $infoq->execute();
-    $infoRes = $infoq->get_result();
-    if ($infoRes && $infoRes->num_rows > 0) {
-        $row = $infoRes->fetch_assoc();
-        $company_name = $row['company_name'] ?? '';
+    $infoq->bind_result($db_company_name);
+    if ($infoq->fetch()) {
+        $company_name = isset($db_company_name) ? $db_company_name : '';
     }
     $infoq->close();
 }
@@ -641,12 +904,11 @@ $current_picture_type = '';
 if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FROM student_info WHERE users_user_id = ?")) {
     $pic_check->bind_param("i", $user_id);
     $pic_check->execute();
-    $pic_result = $pic_check->get_result();
-    if ($pic_result && $pic_result->num_rows > 0) {
-        $pic_data = $pic_result->fetch_assoc();
-        if (!empty($pic_data['profile_picture'])) {
+    $pic_check->bind_result($profile_picture_data, $profile_picture_type_data);
+    if ($pic_check->fetch()) {
+        if (!empty($profile_picture_data)) {
             $has_profile_picture = true;
-            $current_picture_type = $pic_data['profile_picture_type'];
+            $current_picture_type = $profile_picture_type_data;
         }
     }
     $pic_check->close();
@@ -657,50 +919,15 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Quezon City University - OJT Activity Log</title>
+    <title>Quezon City University</title>
+        <link rel="icon" type="image/png" href="img/qcu.png">
         <link rel="stylesheet" href="css/homepage.css">
         <!-- Font Awesome for icons in the sidebar -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-                <style>
-                    /* Floating Printable View button */
-                    .floating-print-btn {
-                        position: fixed;
-                        right: 24px;
-                        bottom: 24px;
-                        display: none; /* hidden by default */
-                        align-items: center;
-                        gap: 10px;
-                        padding: 10px 14px;
-                        background: #2c5e8f;
-                        color: #fff;
-                        border: none;
-                        border-radius: 28px;
-                        box-shadow: 0 10px 24px rgba(0,0,0,0.2);
-                        cursor: pointer;
-                        z-index: 5000; /* keep above overlays */
-                        font-weight: 600;
-                        letter-spacing: .2px;
-                        user-select: none;
-                        outline: none;
-                        transition: box-shadow 0.2s ease;
-                        will-change: transform;
-                    }
-                    .floating-print-btn img {
-                        width: 20px;
-                        height: 20px;
-                        object-fit: contain;
-                        filter: brightness(0) invert(1);
-                    }
-                    .floating-print-btn:hover { box-shadow: 0 14px 30px rgba(0,0,0,0.25); }
-                    .floating-print-btn:active { box-shadow: 0 10px 24px rgba(0,0,0,0.2); }
-                    @media (max-width: 600px) {
-                        .floating-print-btn { right: 16px; bottom: 16px; padding: 9px 12px; }
-                    }
-                </style>
+                
 </head>
 <body>
   <div class="main-layout">
-        <!-- Hamburger removed -->
 
     <!-- Edit Profile Modal (placed outside userProfileModal to avoid stacking) -->
     <div class="modal" id="editProfileModal" style="display:none;">
@@ -724,17 +951,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                         ?>
                     </div>
                 </div>
-                <div class="form-group"><label for="student_fn">First Name:</label><input type="text" id="student_fn" name="student_fn" value="<?= htmlspecialchars($user_profile['student_fn'] ?? '') ?>" required></div>
-                <div class="form-group"><label for="student_mi">Middle Initial:</label><input type="text" id="student_mi" name="student_mi" value="<?= htmlspecialchars($user_profile['student_mi'] ?? '') ?>" maxlength="1"></div>
-                <div class="form-group"><label for="student_ln">Last Name:</label><input type="text" id="student_ln" name="student_ln" value="<?= htmlspecialchars($user_profile['student_ln'] ?? '') ?>" required></div>
-                <div class="form-group"><label for="email">Email:</label><input type="email" id="email" name="email" value="<?= htmlspecialchars($user_email ?? '') ?>" required></div>
-                <div class="form-group"><label for="student_course">Course:</label><input type="text" id="student_course" name="student_course" value="<?= htmlspecialchars($user_profile['student_course'] ?? '') ?>" required></div>
+                <div class="form-group"><label for="student_fn">First Name:</label><input type="text" id="student_fn" name="student_fn" value="<?= htmlspecialchars(isset($user_profile['student_fn']) ? $user_profile['student_fn'] : '') ?>" required></div>
+                <div class="form-group"><label for="student_mi">Middle Initial:</label><input type="text" id="student_mi" name="student_mi" value="<?= htmlspecialchars(isset($user_profile['student_mi']) ? $user_profile['student_mi'] : '') ?>" maxlength="1"></div>
+                <div class="form-group"><label for="student_ln">Last Name:</label><input type="text" id="student_ln" name="student_ln" value="<?= htmlspecialchars(isset($user_profile['student_ln']) ? $user_profile['student_ln'] : '') ?>" required></div>
+                <div class="form-group"><label for="email">Email:</label><input type="email" id="email" name="email" value="<?= htmlspecialchars(isset($user_email) ? $user_email : '') ?>" required></div>
+                <div class="form-group"><label for="student_course">Course:</label><input type="text" id="student_course" name="student_course" value="<?= htmlspecialchars(isset($user_profile['student_course']) ? $user_profile['student_course'] : '') ?>" required></div>
                 <div class="form-group"><label for="student_year">Year:</label>
                   <select id="student_year" name="student_year" required>
-                    <option value="1st Year" <?= ($user_profile['student_year'] ?? '') == '1st Year' ? 'selected' : '' ?>>1st Year</option>
-                    <option value="2nd Year" <?= ($user_profile['student_year'] ?? '') == '2nd Year' ? 'selected' : '' ?>>2nd Year</option>
-                    <option value="3rd Year" <?= ($user_profile['student_year'] ?? '') == '3rd Year' ? 'selected' : '' ?>>3rd Year</option>
-                    <option value="4th Year" <?= ($user_profile['student_year'] ?? '') == '4th Year' ? 'selected' : '' ?>>4th Year</option>
+                    <option value="1st Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '1st Year' ? 'selected' : '' ?>>1st Year</option>
+                    <option value="2nd Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '2nd Year' ? 'selected' : '' ?>>2nd Year</option>
+                    <option value="3rd Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '3rd Year' ? 'selected' : '' ?>>3rd Year</option>
+                    <option value="4th Year" <?= (isset($user_profile['student_year']) ? $user_profile['student_year'] : '') == '4th Year' ? 'selected' : '' ?>>4th Year</option>
                   </select>
                 </div>
                 <div class="modal-buttons">
@@ -761,7 +988,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     </div>
     <div class="overlay" id="sidebarOverlay" style="display:none;"></div>
 
-    
+   
 
         <!-- Scheduling Modal (empty content for now) -->
         <div class="modal" id="scheduleModal">
@@ -769,6 +996,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 <!-- X removed per user request -->
                 <h2>Scheduling Form</h2>
                 <div id="scheduleModalBody">
+                    <div class="form-section">
+                        <div class="section-title">Select Date</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="official-date-select">Date:</label>
+                                <input type="date" id="official-date-select" name="official_date_select" required value="<?= htmlspecialchars($date_today) ?>">
+                                <div id="official-date-status" style="font-size:12px; color:#7f8c8d; margin-top:4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-section">
                         <div class="section-title">Quick Schedule Setup</div>
                         <div class="quick-actions">
@@ -801,7 +1039,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                                     </div>
                                     <div class="time-display" id="<?= $dayKey ?>-display">Not set</div>
                                     <!-- hidden input preserves server field name/ID expected by PHP -->
-                                    <input type="hidden" id="official-<?= $dayKey ?>" name="official_<?= $dayKey ?>" value="<?= htmlspecialchars($official_times[strtoupper($dayKey)] ?? '') ?>">
+                                    <input type="hidden" id="official-<?= $dayKey ?>" name="official_<?= $dayKey ?>" value="<?= htmlspecialchars(isset($official_times[strtoupper($dayKey)]) ? $official_times[strtoupper($dayKey)] : '') ?>">
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -831,15 +1069,15 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     <div class="header-profile-info">
                         <button id="headerFullnameBtn" class="header-fullname-btn" type="button" aria-haspopup="dialog" aria-controls="userProfileModal">
                             <?php
-                                $fn = htmlspecialchars($user_profile['student_fn'] ?? '');
-                                $mi = htmlspecialchars($user_profile['student_mi'] ?? '');
-                                $ln = htmlspecialchars($user_profile['student_ln'] ?? '');
+                                $fn = htmlspecialchars(isset($user_profile['student_fn']) ? $user_profile['student_fn'] : '');
+                                $mi = htmlspecialchars(isset($user_profile['student_mi']) ? $user_profile['student_mi'] : '');
+                                $ln = htmlspecialchars(isset($user_profile['student_ln']) ? $user_profile['student_ln'] : '');
                                 $full = trim($fn . ($mi ? ' ' . $mi : '') . ' ' . $ln);
                                 // Show full name if available, otherwise show username as fallback
-                                echo $full ?: htmlspecialchars($username ?? 'User');
+                                echo $full ? $full : htmlspecialchars(isset($username) ? $username : 'User');
                             ?>
                         </button>
-                        <div class="header-email"><?= htmlspecialchars($user_email ?? $user_profile['student_email'] ?? '') ?></div>
+                        <div class="header-email"><?= htmlspecialchars(isset($user_email) ? $user_email : (isset($user_profile['student_email']) ? $user_profile['student_email'] : '')) ?></div>
                     </div>
                 </div>
       </div>
@@ -852,10 +1090,15 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     </div>
   </div>
 
-    <!-- Floating button (no function yet) -->
-    <button id="printableViewBtn" class="floating-print-btn" type="button" title="Printable View">
-        <img src="img/printer.png" alt="Printer"> Printable View
-    </button>
+    <!-- Floating button group for Weekly and DTR -->
+    <div class="floating-print-btn-group">
+        <button id="weeklyViewBtn" class="floating-print-btn floating-print-btn-left" type="button" title="Weekly Report">
+            Weekly
+        </button>
+        <button id="dtrViewBtn" class="floating-print-btn floating-print-btn-right" type="button" title="Daily Time Record">
+            DTR
+        </button>
+    </div>
 
     <!-- User Profile Modal -->
     <div class="modal" id="userProfileModal" style="display:none;">
@@ -875,8 +1118,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                             </button>
                         </div>
                         <div class="profile-info">
-                            <h3 class="user-name"><?php 
-                                $fullName = trim(($user_profile['student_fn'] ?? '') . ' ' . ($user_profile['student_mi'] ?? '') . ' ' . ($user_profile['student_ln'] ?? ''));
+                            <h3 class="user-name"><?php
+                                $fullName = trim((isset($user_profile['student_fn']) ? $user_profile['student_fn'] : '') . ' ' . (isset($user_profile['student_mi']) ? $user_profile['student_mi'] : '') . ' ' . (isset($user_profile['student_ln']) ? $user_profile['student_ln'] : ''));
                                 echo htmlspecialchars($fullName ?: ($username ?? 'User'));
                             ?></h3>
                             <p class="user-email"><?= htmlspecialchars($user_email ?? $user_profile['student_email'] ?? '') ?></p>
@@ -923,10 +1166,21 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     <!-- AFK Modal -->
 <div class="modal" id="afkModal">
     <div class="modal-content logout-modal">
-        <h2 class="logout-title">Are you still there?</h2>
-        <p style="text-align: center; margin: 15px 0; color: #666;">You've been inactive for a while.</p>
+        <h2 class="logout-title">Session Timeout</h2>
+        <p style="text-align: center; margin: 15px 0; color: #666;">You've been inactive for a while. Please enter your password to continue.</p>
+       
+        <div class="form-group" style="margin: 20px 0;">
+            <label for="afkPassword" style="display: block; margin-bottom: 8px; font-weight: 500;">Password:</label>
+            <input type="password" id="afkPassword" placeholder="Enter your password"
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+            <div id="afkPasswordError" style="color: #e74c3c; font-size: 12px; margin-top: 5px; display: none;"></div>
+        </div>
+       
+        <div style="text-align: center; margin: 10px 0; color: #666; font-size: 14px;">
+            <span id="afkCountdown">Time remaining: 30s</span>
+        </div>
+       
         <div class="modal-buttons logout-confirm">
-            <button class="btn confirm-filled" onclick="goBackToLogin()">Go back to Login</button>
         </div>
     </div>
 </div>
@@ -957,9 +1211,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                   if ($uStmt = $conn->prepare($uSql)) {
                       $uStmt->bind_param('i', $uId);
                       $uStmt->execute();
-                      $uRes = $uStmt->get_result();
-                      if ($uRow = $uRes->fetch_assoc()) {
-                          $createdAt = !empty($uRow['created_at']) ? $uRow['created_at'] : null;
+                      $uStmt->bind_result($db_created_at);
+                      if ($uStmt->fetch()) {
+                          $createdAt = !empty($db_created_at) ? $db_created_at : null;
                           if ($createdAt) {
                               try {
                                   $dt = new DateTime($createdAt, new DateTimeZone('Asia/Manila'));
@@ -988,10 +1242,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                       if ($minStmt = $conn->prepare($minSql)) {
                           $minStmt->bind_param('i', $uId);
                           $minStmt->execute();
-                          $minRes = $minStmt->get_result();
-                          if ($minRow = $minRes->fetch_assoc()) {
-                              if (!empty($minRow['min_date'])) {
-                                  $initialRangeStart = substr($minRow['min_date'], 0, 10);
+                          $minStmt->bind_result($min_date);
+                          if ($minStmt->fetch()) {
+                              if (!empty($min_date)) {
+                                  $initialRangeStart = substr($min_date, 0, 10);
                                   $dtmp = new DateTime($initialRangeStart);
                                   $dtmp->modify('monday this week');
                                   $initialRangeStart = $dtmp->format('Y-m-d');
@@ -1078,10 +1332,20 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       <h2>Fill Out Form</h2>
       <div id="currentDateTime"><?php echo date('l, F j, Y | h:i:s A'); ?></div>
 
-      <form id="accomplishmentForm" method="post" onsubmit="return false;">
+    <form id="accomplishmentForm" method="post" onsubmit="return false;">
+            <!-- hidden field to carry calculated capped time-out so we don't overwrite the visible input -->
+            <input type="hidden" id="time_out_calc" name="time_out_calc" value="">
                 <!-- Official Time and Company moved to Scheduling modal -->
 
                 <!-- Training period fields removed per user request -->
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="date-record">Date:</label>
+                        <input type="date" id="date-record" name="date_record" required value="<?= htmlspecialchars($date_today) ?>">
+                                <div id="date-record-status" style="font-size:12px; color:#7f8c8d; margin-top:4px;"></div>
+                    </div>
+                </div>
 
         <div class="form-row">
           <div class="form-group">
@@ -1138,7 +1402,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             if (element) {
                 element.style.opacity = '0';
                 element.style.animation = 'none';
-                
+               
                 setTimeout(() => {
                     element.style.animation = `${animation} 0.4s ease-out forwards`;
                 }, delay);
@@ -1150,7 +1414,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         menuItems.forEach((item, index) => {
             item.style.opacity = '0';
             item.style.transform = 'translateX(-20px)';
-            
+           
             setTimeout(() => {
                 item.style.transition = 'all 0.3s ease';
                 item.style.opacity = '1';
@@ -1168,7 +1432,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 this.style.boxShadow = '6px 0 40px rgba(44, 94, 143, 0.4)';
                 this.style.transform = 'translateX(2px)';
             });
-            
+           
             sidebar.addEventListener('mouseleave', function() {
                 this.style.boxShadow = '';
                 this.style.transform = 'translateX(0)';
@@ -1178,11 +1442,12 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Enhanced button interactions
         const buttons = document.querySelectorAll('button, .btn');
         buttons.forEach(button => {
-            // Skip modal buttons to prevent position changes
-            if (button.closest('#userProfileModal') || 
-                button.classList.contains('close-button') || 
+            // Skip modal buttons and floating print buttons to prevent position changes
+            if (button.closest('#userProfileModal') ||
+                button.classList.contains('close-button') ||
                 button.classList.contains('profile-edit-overlay') ||
-                button.id === 'printableViewBtn') {
+                button.id === 'weeklyViewBtn' ||
+                button.id === 'dtrViewBtn') {
                 return;
             }
 
@@ -1193,7 +1458,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 const size = Math.max(rect.width, rect.height);
                 const x = e.clientX - rect.left - size / 2;
                 const y = e.clientY - rect.top - size / 2;
-                
+               
                 ripple.style.cssText = `
                     position: absolute;
                     width: ${size}px;
@@ -1207,11 +1472,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     pointer-events: none;
                     z-index: 1;
                 `;
-                
+               
                 this.style.position = 'relative';
                 this.style.overflow = 'hidden';
                 this.appendChild(ripple);
-                
+               
                 setTimeout(() => ripple.remove(), 300);
             });
 
@@ -1220,7 +1485,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 this.style.transform = 'translateY(-2px)';
                 this.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.2)';
             });
-            
+           
             button.addEventListener('mouseleave', function() {
                 this.style.transform = 'translateY(0)';
                 this.style.boxShadow = '';
@@ -1234,7 +1499,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 this.style.transform = 'scale(1.02)';
                 this.style.boxShadow = '0 0 20px rgba(90, 155, 213, 0.3)';
                 this.style.borderColor = 'var(--primary-main)';
-                
+               
                 // Add floating label animation if needed
                 const label = this.previousElementSibling;
                 if (label && label.tagName === 'LABEL') {
@@ -1242,19 +1507,19 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     label.style.transform = 'translateY(-2px)';
                 }
             });
-            
+           
             input.addEventListener('blur', function() {
                 this.style.transform = 'scale(1)';
                 this.style.boxShadow = '';
                 this.style.borderColor = '';
-                
+               
                 const label = this.previousElementSibling;
                 if (label && label.tagName === 'LABEL') {
                     label.style.color = '';
                     label.style.transform = 'translateY(0)';
                 }
             });
-            
+           
             // Add typing animation
             input.addEventListener('input', function() {
                 this.style.animation = 'inputGlow 0.3s ease';
@@ -1286,21 +1551,21 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function showModalWithAnimation(modalId) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
-        
+       
         modal.style.display = 'flex';
         modal.style.opacity = '0';
         modal.style.backdropFilter = 'blur(0px)';
-        
+       
         requestAnimationFrame(() => {
             modal.style.transition = 'all 0.15s ease';
             modal.style.opacity = '1';
             modal.style.backdropFilter = 'blur(8px)';
-            
+           
             const modalContent = modal.querySelector('.modal-content');
             if (modalContent) {
                 modalContent.style.transform = 'scale(0.8) translateY(-30px)';
                 modalContent.style.opacity = '0';
-                
+               
                 setTimeout(() => {
                     modalContent.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
                     modalContent.style.transform = 'scale(1) translateY(0)';
@@ -1313,18 +1578,18 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function hideModalWithAnimation(modalId) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
-        
+       
         const modalContent = modal.querySelector('.modal-content');
         if (modalContent) {
             modalContent.style.transition = 'all 0.15s ease';
             modalContent.style.transform = 'scale(0.8) translateY(-20px)';
             modalContent.style.opacity = '0';
         }
-        
+       
         modal.style.transition = 'all 0.15s ease';
         modal.style.opacity = '0';
         modal.style.backdropFilter = 'blur(0px)';
-        
+       
         setTimeout(() => {
             modal.style.display = 'none';
         }, 200);
@@ -1339,51 +1604,51 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 opacity: 0;
             }
         }
-        
+       
         @keyframes inputGlow {
-            0%, 100% { 
-                box-shadow: 0 0 5px rgba(90, 155, 213, 0.3); 
+            0%, 100% {
+                box-shadow: 0 0 5px rgba(90, 155, 213, 0.3);
             }
-            50% { 
-                box-shadow: 0 0 20px rgba(90, 155, 213, 0.6); 
+            50% {
+                box-shadow: 0 0 20px rgba(90, 155, 213, 0.6);
             }
         }
-        
+       
         .animate-on-hover:hover {
             transform: translateY(-1px);
             transition: transform 0.1s ease;
         }
-        
+       
         .pulse-on-click {
             transform: scale(0.98);
             transition: transform 0.1s ease;
         }
-        
+       
         @keyframes buttonPress {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(0.95); }
         }
-        
+       
         .loading-shimmer {
             background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
             background-size: 200% 100%;
             animation: shimmerEffect 1.5s infinite;
         }
-        
+       
         .success-flash {
             animation: successFlash 0.6s ease;
         }
-        
+       
         @keyframes successFlash {
             0%, 100% { background-color: transparent; }
             50% { background-color: rgba(40, 167, 69, 0.2); }
         }
-        
+       
         /* Viewform transition blink effect */
         .viewform-inner {
             transition: opacity 0.1s ease-in-out;
         }
-        
+       
         @keyframes viewformBlink {
             0% { opacity: 1; }
             50% { opacity: 0; }
@@ -1473,7 +1738,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         return (capped ? '8:00' : (h + ':' + String(m).padStart(2, '0')));
     }
 
-    
+   
 
 
     // Before submitting, normalize time-out when needed so server TIMESTAMPDIFF(HOUR,...) stores correct capped value.
@@ -1494,16 +1759,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
         const duration = adjustedTout - tin;
 
-        if (duration >= 480) {
-            // set time-out to exactly time-in + 8 hours (mod 24h) so DB TIMESTAMPDIFF(HOUR,...) yields 8
-            const newTout = tin + 480;
-            timeOutEl.value = minutesToTimeString(newTout);
-            // update display to 8:00 if present
-            if (displayEl) {
-                displayEl.textContent = '8:00';
-                displayEl.dataset.duration = String(480);
-                displayEl.dataset.capped = '1';
-            }
+            if (duration >= 480) {
+                // compute time-in + 8 hours (mod 24h) and store in hidden field so we don't overwrite user's visible input
+                const newTout = tin + 480;
+                const calcEl = document.getElementById('time_out_calc');
+                if (calcEl) calcEl.value = minutesToTimeString(newTout);
+                // update display to 8:00 if present
+                if (displayEl) {
+                    displayEl.textContent = '8:00';
+                    displayEl.dataset.duration = String(480);
+                    displayEl.dataset.capped = '1';
+                }
         } else {
             // ensure display shows normalized duration (handles overnight)
             if (displayEl) {
@@ -1511,6 +1777,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 displayEl.dataset.duration = String(duration);
                 displayEl.dataset.capped = '0';
             }
+            // clear any previous calculated hidden value when no cap applies
+            const calcEl2 = document.getElementById('time_out_calc');
+            if (calcEl2) calcEl2.value = '';
         }
     }
 
@@ -1758,6 +2027,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function openEditProfileModal() {
         const em = document.getElementById("editProfileModal");
         if (em) em.style.display = "flex";
+        // Clear any previous gentle reminder outline when opening
+        try {
+            const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+            if (fileGroup) {
+                fileGroup.classList.remove('missing-image');
+                fileGroup.classList.remove('pulsing');
+            }
+        } catch (e) { /* noop */ }
     }
 
     function closeEditProfileModal() {
@@ -1775,7 +2052,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const modal = document.getElementById("fillOutModal");
         if (modal) {
             modal.style.display = "flex";
-            loadTodayRecord(); // Load today's data
+            try {
+                const dateInput = document.getElementById('date-record');
+                const selectedDate = dateInput && dateInput.value ? dateInput.value : (new Date()).toISOString().slice(0,10);
+                loadRecordForDate(selectedDate);
+            } catch (e) { console.error('Failed to load record for selected date', e); }
            
             // Reset form message
             const msg = document.getElementById("formMessage");
@@ -1840,6 +2121,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Hook the edit profile form submit to set the reopen flag when saving
         const editForm = document.getElementById('editProfileForm');
         if (editForm) {
+            // Gentle reminder on submit if no image selected and image is required
             editForm.addEventListener('submit', function (e) {
                 try {
                     // If the edit modal was opened from the user profile, set flag so it reopens after reload
@@ -1847,7 +2129,57 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                         localStorage.setItem('reopenUserProfile', '1');
                     }
                 } catch (err) { /* ignore */ }
+
+                try {
+                    const fileInput = document.getElementById('profile_picture');
+                    const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                    if (fileInput && fileInput.hasAttribute('required') && (!fileInput.files || fileInput.files.length === 0)) {
+                        if (fileGroup) fileGroup.classList.add('missing-image');
+                        // Do not prevent default here; let browser required validation run
+                    }
+                } catch (err) { /* ignore */ }
             });
+
+            // Remove reminder immediately after the user selects a file
+            const picInput = document.getElementById('profile_picture');
+            if (picInput) {
+                // In some browsers, submit handler doesn't run if native validation fails.
+                // Add a click handler on the Save button to ensure the reminder appears.
+                const saveBtn = document.getElementById('editProfileSaveBtn');
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', function () {
+                        const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                        if (picInput.hasAttribute('required') && (!picInput.files || picInput.files.length === 0)) {
+                            if (fileGroup) {
+                                fileGroup.classList.add('missing-image');
+                                // retrigger minimal glow
+                                fileGroup.classList.remove('pulsing');
+                                void fileGroup.offsetWidth; // force reflow
+                                fileGroup.classList.add('pulsing');
+                            }
+                        }
+                    });
+                }
+
+                // Also respond to native invalid events on the input
+                picInput.addEventListener('invalid', function () {
+                    const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                    if (fileGroup) {
+                        fileGroup.classList.add('missing-image');
+                        fileGroup.classList.remove('pulsing');
+                        void fileGroup.offsetWidth; // force reflow
+                        fileGroup.classList.add('pulsing');
+                    }
+                });
+
+                picInput.addEventListener('change', function () {
+                    const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                    if (picInput.files && picInput.files.length > 0 && fileGroup) {
+                        fileGroup.classList.remove('missing-image');
+                        fileGroup.classList.remove('pulsing');
+                    }
+                });
+            }
         }
     });
 
@@ -1879,10 +2211,24 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         .then(res => res.json())
         .then (data => {
             if (data.status === "success") {
-                // Update time inputs
-                document.getElementById("time-in").value = data.data.time_in || '';
-                document.getElementById("time-out").value = data.data.time_out || '';
+                // Update time inputs - both hidden (24h) and display (12h) inputs
+                const timeInValue = data.data.time_in || '';
+                const timeOutValue = data.data.time_out || '';
+               
+                document.getElementById("time-in").value = timeInValue;
+                document.getElementById("time-out").value = timeOutValue;
                 document.getElementById("task").value = data.data.task_completed || '';
+               
+                // Update display inputs with 12-hour format
+                const timeInDisplay = document.getElementById("time-in-display");
+                const timeOutDisplay = document.getElementById("time-out-display");
+               
+                if (timeInDisplay && timeInValue) {
+                    timeInDisplay.value = convert24HourTo12Hour(timeInValue);
+                }
+                if (timeOutDisplay && timeOutValue) {
+                    timeOutDisplay.value = convert24HourTo12Hour(timeOutValue);
+                }
 
                 // Update official times (populate hidden input and new AM/PM pickers)
                 ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
@@ -1906,6 +2252,108 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         .catch(err => console.error("Error loading record:", err));
     }
 
+    // Load accomplishment for a specific calendar date (YYYY-MM-DD)
+    function loadRecordForDate(dateStr) {
+        if (!dateStr) return;
+        const fd = new FormData();
+        fd.append('ajax', 'load_by_date');
+        fd.append('date_record', dateStr);
+
+        fetch(window.location.pathname, {
+            method: 'POST',
+            body: fd
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.status === 'success') {
+                const ti = (data.data && data.data.time_in) ? data.data.time_in : '';
+                const to = (data.data && data.data.time_out) ? data.data.time_out : '';
+                const task = (data.data && data.data.task_completed) ? data.data.task_completed : '';
+
+                const tinEl = document.getElementById('time-in');
+                const toutEl = document.getElementById('time-out');
+                const taskEl = document.getElementById('task');
+                if (tinEl) tinEl.value = ti;
+                if (toutEl) toutEl.value = to;
+                if (taskEl) taskEl.value = task;
+
+                // Clear any calculated override when loading
+                const calc = document.getElementById('time_out_calc');
+                if (calc) calc.value = '';
+
+                // Show existence status
+                const statusEl = document.getElementById('date-record-status');
+                if (statusEl) {
+                    if (data.exists) {
+                        statusEl.style.color = '#2ecc71';
+                        statusEl.textContent = 'Existing entry loaded for this date';
+                    } else {
+                        statusEl.style.color = '#7f8c8d';
+                        statusEl.textContent = 'No entry yet for this date — you can add one';
+                    }
+                }
+            }
+        })
+        .catch(err => console.error('Error loading by date:', err));
+    }
+
+    // Load official_time for a specific date (using created_at as date marker)
+    function loadOfficialByDate(dateStr) {
+        if (!dateStr) return;
+        const fd = new FormData();
+        fd.append('ajax', 'load_official_by_date');
+        fd.append('official_date', dateStr);
+
+        fetch(window.location.pathname, {
+            method: 'POST',
+            body: fd
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.status === 'success') {
+                // Clear all official time inputs first
+                ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
+                    const amSel = document.getElementById(`official-${day}-am`);
+                    const pmSel = document.getElementById(`official-${day}-pm`);
+                    const hidden = document.getElementById(`official-${day}`);
+                    if (amSel) amSel.value = '';
+                    if (pmSel) pmSel.value = '';
+                    if (hidden) hidden.value = '';
+                    updateDayDisplay(day);
+                });
+
+                // Populate with fetched data
+                if (data.data) {
+                    Object.keys(data.data).forEach(dayKey => {
+                        const rawTime = data.data[dayKey];
+                        const parts = parseOfficialString(rawTime);
+                        const amSel = document.getElementById(`official-${dayKey}-am`);
+                        const pmSel = document.getElementById(`official-${dayKey}-pm`);
+                        const hidden = document.getElementById(`official-${dayKey}`);
+                        
+                        if (amSel) amSel.value = to12HourText(parts.am) || '';
+                        if (pmSel) pmSel.value = to12HourText(parts.pm) || '';
+                        if (hidden) hidden.value = rawTime;
+                        updateDayDisplay(dayKey);
+                    });
+                }
+
+                // Show status
+                const statusEl = document.getElementById('official-date-status');
+                if (statusEl) {
+                    if (data.exists) {
+                        statusEl.style.color = '#2ecc71';
+                        statusEl.textContent = 'Schedule loaded for this date';
+                    } else {
+                        statusEl.style.color = '#7f8c8d';
+                        statusEl.textContent = 'No schedule yet — you can add one';
+                    }
+                }
+            }
+        })
+        .catch(err => console.error('Error loading official times by date:', err));
+    }
+
     // Load selected week from dropdown
     function loadSelectedWeek() {
         const dropdown = document.getElementById('weekDropdown');
@@ -1913,17 +2361,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             alert('Please select a week first.');
             return;
         }
-        
+       
         const selected = dropdown.options[dropdown.selectedIndex];
         const weekNum = dropdown.value;
         const range = selected.getAttribute('data-range');
         const year = selected.getAttribute('data-year');
-        
+       
         // Update current state
         currentWeekState.week = weekNum;
         currentWeekState.year = year;
         currentWeekState.range = range;
-        
+       
         // Load the selected week
         loadViewForm(weekNum, range, year);
         closeWeekModal();
@@ -1951,17 +2399,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function loadSelectedWeek() {
         const dropdown = document.getElementById('weekDropdown');
         if (!dropdown || dropdown.selectedIndex < 0) return;
-        
+       
         const selected = dropdown.options[dropdown.selectedIndex];
         const weekNum = selected.value;
         const range = selected.getAttribute('data-range');
         const year = selected.getAttribute('data-year');
-        
+       
         // Update current state
         currentWeekState.week = weekNum;
         currentWeekState.year = year;
         currentWeekState.range = range;
-        
+       
         // Load the selected week
         loadViewForm(weekNum, range, year);
         closeWeekModal();
@@ -1972,13 +2420,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const container = document.getElementById('viewform-container');
         if (!container) return;
 
-        // Show printable button when viewform is being shown
+       // Show printable button group when viewform is being shown
         try {
-            const pbtn = document.getElementById('printableViewBtn');
-            if (pbtn) pbtn.style.display = 'inline-flex';
+            const btnGroup = document.querySelector('.floating-print-btn-group');
+            if (btnGroup) btnGroup.style.display = 'flex';
         } catch (e) { /* ignore */ }
 
-        
+       
 
         // Ensure there's an inner wrapper we can safely replace without touching
         // the outer container's layout or event listeners.
@@ -2065,7 +2513,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     Promise.all([Promise.all(loadPromises), timeout]).then(() => {
                         // Replace inner content now that styles are (likely) applied
                         inner.innerHTML = newHtml;
-                        
+                       
                         // Fade in the new content with blink effect - immediate
                         requestAnimationFrame(() => {
                             inner.style.opacity = '1';
@@ -2148,13 +2596,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             return;
         }
 
-        // Hide printable button on analytics/dashboard
+        // Hide printable button group on analytics/dashboard
         try {
-            const pbtn = document.getElementById('printableViewBtn');
-            if (pbtn) pbtn.style.display = 'none';
+            const btnGroup = document.querySelector('.floating-print-btn-group');
+            if (btnGroup) btnGroup.style.display = 'none';
         } catch (e) { /* ignore */ }
 
-        
+       
 
         // Similar safe replace used by loadViewForm
         let inner = container.querySelector('.viewform-inner');
@@ -2309,6 +2757,26 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             openWeekModal();
         });
 
+        // Load data when date changes in Fill Out form
+        try {
+            const dateInput = document.getElementById('date-record');
+            if (dateInput) {
+                dateInput.addEventListener('change', function() {
+                    if (this.value) loadRecordForDate(this.value);
+                });
+            }
+        } catch (e) { console.warn('date-record change binding failed', e); }
+
+        // Load data when date changes in Schedule modal
+        try {
+            const officialDateInput = document.getElementById('official-date-select');
+            if (officialDateInput) {
+                officialDateInput.addEventListener('change', function() {
+                    if (this.value) loadOfficialByDate(this.value);
+                });
+            }
+        } catch (e) { console.warn('official-date-select change binding failed', e); }
+
         // Schedule button wiring
         const scheduleBtn = document.getElementById('scheduleButton');
         if (scheduleBtn) {
@@ -2362,9 +2830,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             });
         })();
 
-        // Printable View button -> open viewform in new tab with filled approved fields
+        // Weekly View button -> open viewform in new tab with filled approved fields
         (function() {
-            const btn = document.getElementById('printableViewBtn');
+            const btn = document.getElementById('weeklyViewBtn');
             if (!btn) return;
             btn.addEventListener('click', function() {
                 try {
@@ -2386,6 +2854,16 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             });
         })();
 
+        // DTR button -> open timesheet view (all historical entries newest first) in new tab
+        (function() {
+            const btn = document.getElementById('dtrViewBtn');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                const url = 'timesheet.php';
+                window.open(url, '_blank');
+            });
+        })();
+
         // Scheduling modal submit button - reuse same save_form flow for official times/company
         const scheduleSubmitBtn = document.getElementById('scheduleSubmit');
         if (scheduleSubmitBtn) {
@@ -2399,6 +2877,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 formData.append('ajax', 'save_form');
                 formData.append('week', currentWeekState.week);
                 formData.append('year', currentWeekState.year);
+
+                // Include selected date from schedule modal if present
+                try {
+                    const officialDateInput = document.getElementById('official-date-select');
+                    if (officialDateInput && officialDateInput.value) {
+                        formData.append('official_date_select', officialDateInput.value);
+                    }
+                } catch (e) { /* ignore */ }
 
                 // Read values from AM/PM pickers and set hidden inputs (preserve server field names)
                 ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
@@ -2420,6 +2906,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
                 if (timeIn && timeIn.value) formData.append('time_in', timeIn.value);
                 if (timeOut && timeOut.value) formData.append('time_out', timeOut.value);
+                // include calculated capped time-out (if enforced) so server can use it for TIMESTAMPDIFF calculations
+                const calc = document.getElementById('time_out_calc');
+                if (calc && calc.value) formData.append('time_out_calc', calc.value);
                 if (task && task.value) formData.append('task_completed', task.value);
 
                 // Add company data
@@ -2457,7 +2946,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Enhanced Form submission with animations
         const accomplishmentForm = document.getElementById("accomplishmentForm");
         if (accomplishmentForm) {
-            
+           
 
             accomplishmentForm.addEventListener("submit", function(e) {
                 e.preventDefault();
@@ -2485,8 +2974,8 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                
                 const submitBtn = document.getElementById('submit-button');
                 const msg = document.getElementById("formMessage");
-                
-                
+               
+               
                // enforce/normalize times (cap at 8h, handle overnight) before sending
                try { enforceTimesBeforeSubmit(); } catch (err) { console.warn('enforceTimesBeforeSubmit failed', err); }
                
@@ -2495,9 +2984,17 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 formData.append('ajax', 'save_form');
                 formData.append('week', currentWeekState.week);
                 formData.append('year', currentWeekState.year);
+                // Include selected date for daily record save
+                try {
+                    const dateInput = document.getElementById('date-record');
+                    if (dateInput && dateInput.value) formData.append('date_record', dateInput.value);
+                } catch (e) { /* ignore */ }
                 formData.append('validate_times', '1');
                 formData.append('time_in', document.getElementById('time-in').value);
                 formData.append('time_out', document.getElementById('time-out').value);
+                // include calculated capped time-out if present (preserve visible input for user)
+                const _calc = document.getElementById('time_out_calc');
+                if (_calc && _calc.value) formData.append('time_out_calc', _calc.value);
                 formData.append('task_completed', document.getElementById('task').value);
                
                 // Add official times - MANUALLY (always send for any week)
@@ -2529,9 +3026,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 })
                 .then(data => {
                     console.log("Server response:", data);
-                    
-                    
-                    
+                   
+                   
+                   
                     if (data.status === "success") {
                         // Close immediately and navigate to Weekly View of current week
                         closeFillModal();
@@ -2575,26 +3072,26 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                         // Error animation
                         if (msg) {
                             msg.style.color = "#f44336";
-                            
+                           
                             msg.textContent = data.message || "Error saving data";
                         }
-                        
-                        
+                       
+                       
                     }
                 })
                 .catch(err => {
                     console.error("Submit error:", err);
-                    
-                    
-                    
+                   
+                   
+                   
                     // Network error animation
                     if (msg) {
                         msg.style.color = "#ff5722";
 
                         msg.textContent = "Network error. Please try again.";
                     }
-                    
-                    
+                   
+                   
                 });
             });
         }
@@ -2632,11 +3129,15 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         if (modal) modal.style.display = 'flex';
         // Ensure schedule selects and listeners are attached and values loaded
         try { attachScheduleListeners(); } catch (e) { console.error('attachScheduleListeners error', e); }
-        // Load today's record (will populate hidden inputs and then selects)
-        try { loadTodayRecord(currentWeekState.week, currentWeekState.year); } catch (e) { console.error('loadTodayRecord error', e); }
+        // Load official times for the selected date (default to today)
+        try {
+            const dateInput = document.getElementById('official-date-select');
+            const selectedDate = dateInput && dateInput.value ? dateInput.value : (new Date()).toISOString().slice(0,10);
+            loadOfficialByDate(selectedDate);
+        } catch (e) { console.error('Failed to load official times for selected date', e); }
     }
 
-    
+   
 
     function closeScheduleModal() {
         const modal = document.getElementById('scheduleModal');
@@ -2749,14 +3250,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function getInactivityTimeout() {
       const savedValue = localStorage.getItem('inactivityTimeout');
       const savedUnit = localStorage.getItem('inactivityTimeoutUnit') || 'minutes';
-      
+     
       let timeoutMinutes = savedValue ? parseInt(savedValue) : 2;
-      
+     
       // Convert hours to minutes if needed
       if (savedUnit === 'hours') {
         timeoutMinutes = timeoutMinutes * 60;
       }
-      
+     
       return timeoutMinutes * 60 * 1000; // Convert to milliseconds
     }
 
@@ -2768,14 +3269,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     document.addEventListener('DOMContentLoaded', function() {
       const timeoutInput = document.getElementById('inactivityTimeout');
       const timeoutUnit = document.getElementById('timeoutUnit');
-      
+     
       if (timeoutInput && timeoutUnit) {
         const savedValue = localStorage.getItem('inactivityTimeout') || '2';
         const savedUnit = localStorage.getItem('inactivityTimeoutUnit') || 'minutes';
-        
+       
         timeoutInput.value = savedValue;
         timeoutUnit.value = savedUnit;
-        
+       
         // Update max value based on unit
         function updateMaxValue() {
           if (timeoutUnit.value === 'hours') {
@@ -2787,46 +3288,46 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             timeoutInput.max = 120; // Max 120 minutes
           }
         }
-        
+       
         updateMaxValue();
-        
+       
         // Save timeout when user changes the value
         timeoutInput.addEventListener('change', function() {
           let value = parseInt(this.value);
           const unit = timeoutUnit.value;
           const maxVal = unit === 'hours' ? 24 : 120;
-          
+         
           // Validate range
           if (isNaN(value) || value < 1) value = 1;
           if (value > maxVal) value = maxVal;
           this.value = value;
-          
+         
           // Save to localStorage
           localStorage.setItem('inactivityTimeout', value);
-          
+         
           // Restart the AFK timer with new timeout
           if (!afkModalShown) {
             resetAfkTimer();
           }
         });
-        
+       
         // Save unit when user changes it
         timeoutUnit.addEventListener('change', function() {
           localStorage.setItem('inactivityTimeoutUnit', this.value);
           updateMaxValue();
-          
+         
           // Restart the AFK timer with new timeout
           if (!afkModalShown) {
             resetAfkTimer();
           }
         });
-        
+       
         // Also handle on input for real-time validation
         timeoutInput.addEventListener('input', function() {
           let value = parseInt(this.value);
           const unit = timeoutUnit.value;
           const maxVal = unit === 'hours' ? 24 : 120;
-          
+         
           if (isNaN(value) || value < 1) {
             this.value = 1;
           }
@@ -2842,7 +3343,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       if (afkModalShown) {
         return;
       }
-      
+     
       // Clear existing timer
       clearTimeout(afkTimer);
 
@@ -2857,15 +3358,328 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     function showAfkModal() {
       afkModalShown = true;
-      
+     
       // Save current state before showing AFK modal
       saveCurrentState();
-      
+     
       // Set sessionStorage flag so AFK modal persists on refresh
       sessionStorage.setItem('afkModalActive', 'true');
       const afkModal = document.getElementById('afkModal');
       if (afkModal) {
         afkModal.style.display = 'flex';
+       
+        // Focus on password input
+        const passwordInput = document.getElementById('afkPassword');
+        if (passwordInput) {
+          passwordInput.focus();
+          passwordInput.value = '';
+         
+          // Remove any existing event listeners to prevent duplicates
+          passwordInput.removeEventListener('input', handleAfkPasswordInput);
+          passwordInput.removeEventListener('keypress', handleAfkPasswordKeypress);
+          passwordInput.removeEventListener('blur', handleAfkPasswordBlur);
+         
+          // Add event listeners for this modal instance
+          passwordInput.addEventListener('input', handleAfkPasswordInput);
+          passwordInput.addEventListener('keypress', handleAfkPasswordKeypress);
+          passwordInput.addEventListener('blur', handleAfkPasswordBlur);
+        }
+       
+        // Clear any previous error messages
+        const errorDiv = document.getElementById('afkPasswordError');
+        if (errorDiv) {
+          errorDiv.style.display = 'none';
+          errorDiv.textContent = '';
+        }
+       
+        // Start 30-second countdown timer
+        startAfkCountdown();
+      }
+    }
+
+    // Event handler functions for AFK password input
+    function handleAfkPasswordInput(e) {
+      console.log('Password input detected');
+     
+      const currentValue = e.target.value;
+     
+      if (currentValue.length > 0) {
+        // User has typed something, pause timer
+        if (afkCountdownTimer && !afkTimerPaused) {
+          console.log('User is typing, pausing timer');
+          stopAfkCountdown();
+          updateAfkCountdownDisplay();
+          console.log('Timer paused');
+        }
+       
+        // Auto-verify password as user types (debounced)
+        clearTimeout(e.target.verifyTimeout);
+        e.target.verifyTimeout = setTimeout(() => {
+          if (e.target.value.length >= 3) { // Only try after 3+ characters
+            autoVerifyAfkPassword();
+          }
+        }, 500); // Wait 500ms after user stops typing
+      } else {
+        // Input is empty, resume timer
+        if (afkTimerPaused) {
+          console.log('Input cleared, resuming timer from', afkTimeRemaining, 'seconds');
+          resumeAfkCountdown(); // Use resumeAfkCountdown instead of startAfkCountdown
+          console.log('Timer resumed from previous time');
+        }
+      }
+    }
+
+    function handleAfkPasswordKeypress(e) {
+      console.log('Key pressed:', e.key);
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        console.log('Enter key pressed, verifying password');
+        verifyAfkPassword();
+      }
+    }
+
+    function handleAfkPasswordBlur(e) {
+      console.log('Password input lost focus');
+      if (!e.target.value.trim()) {
+        console.log('Input is empty, restarting timer');
+        restartAfkCountdown();
+      }
+    }
+
+    // AFK Modal countdown timer (30 seconds)
+    let afkCountdownTimer = null;
+    let afkTimeRemaining = 30;
+    let afkTimerPaused = false;
+
+    function startAfkCountdown() {
+      afkTimeRemaining = 30;
+      afkTimerPaused = false;
+      updateAfkCountdownDisplay();
+     
+      if (afkCountdownTimer) {
+        clearInterval(afkCountdownTimer);
+      }
+     
+      afkCountdownTimer = setInterval(() => {
+        if (!afkTimerPaused) {
+          afkTimeRemaining--;
+          updateAfkCountdownDisplay();
+         
+          if (afkTimeRemaining <= 0) {
+            clearInterval(afkCountdownTimer);
+            forceLogout();
+          }
+        }
+      }, 1000);
+    }
+
+    function resumeAfkCountdown() {
+      // Resume countdown from current afkTimeRemaining (don't reset to 30)
+      afkTimerPaused = false;
+      updateAfkCountdownDisplay();
+     
+      if (afkCountdownTimer) {
+        clearInterval(afkCountdownTimer);
+      }
+     
+      afkCountdownTimer = setInterval(() => {
+        if (!afkTimerPaused) {
+          afkTimeRemaining--;
+          updateAfkCountdownDisplay();
+         
+          if (afkTimeRemaining <= 0) {
+            clearInterval(afkCountdownTimer);
+            forceLogout();
+          }
+        }
+      }, 1000);
+    }
+
+    function updateAfkCountdownDisplay(customMessage) {
+      const countdownElement = document.getElementById('afkCountdown');
+      if (countdownElement) {
+        if (customMessage) {
+          countdownElement.textContent = customMessage;
+          countdownElement.style.color = '#2ecc71'; // Green for custom messages
+        } else {
+          // Show the timer with pause indicator if paused
+          const timeText = `Time remaining: ${afkTimeRemaining}s`;
+          const pauseIndicator = afkTimerPaused ? '' : '';
+          countdownElement.textContent = timeText + pauseIndicator;
+         
+          // Change color based on timer state and time remaining
+          if (afkTimerPaused) {
+            countdownElement.style.color = '#f39c12'; // Orange when paused
+          } else if (afkTimeRemaining <= 10) {
+            countdownElement.style.color = '#e74c3c';
+          } else if (afkTimeRemaining <= 20) {
+            countdownElement.style.color = '#f39c12';
+          } else {
+            countdownElement.style.color = '#666';
+          }
+        }
+      }
+    }
+
+    function stopAfkCountdown() {
+      console.log('stopAfkCountdown called, pausing timer');
+      afkTimerPaused = true;
+    }
+
+    function restartAfkCountdown() {
+      console.log('restartAfkCountdown called');
+      if (afkCountdownTimer && afkTimerPaused) {
+        console.log('Unpausing timer');
+        afkTimerPaused = false;
+        updateAfkCountdownDisplay();    
+      }
+    }
+
+    function clearAfkCountdown() {
+      if (afkCountdownTimer) {
+        clearInterval(afkCountdownTimer);
+        afkCountdownTimer = null;
+      }
+      afkTimerPaused = false;
+    }
+
+    // Auto-verify AFK password as user types (silent verification)
+    function autoVerifyAfkPassword() {
+      const passwordInput = document.getElementById('afkPassword');
+      if (!passwordInput) return;
+     
+      const password = passwordInput.value.trim();
+      if (!password) return;
+     
+      // Send AJAX request to verify password (silently)
+      const formData = new FormData();
+      formData.append('ajax', 'verify_afk_password');
+      formData.append('password', password);
+     
+      fetch(window.location.pathname, {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Password correct - automatically resume session
+          updateAfkCountdownDisplay('Password correct! Resuming session...');
+          setTimeout(() => {
+            resumeSession();
+          }, 3000); // 3 second delay to show success message
+        }
+        // If password is wrong, do nothing (don't show error for auto-verify)
+      })
+      .catch(error => {
+        console.error('Auto password verification error:', error);
+        // Silent failure for auto-verify
+      });
+    }
+
+    // Manual verify AFK password function (for button click/Enter key)
+    window.verifyAfkPassword = function() {
+      const passwordInput = document.getElementById('afkPassword');
+      const errorDiv = document.getElementById('afkPasswordError');
+      const continueBtn = document.getElementById('afkContinueBtn');
+     
+      if (!passwordInput || !errorDiv || !continueBtn) return;
+     
+      const password = passwordInput.value.trim();
+     
+      if (!password) {
+        showAfkError('Please enter your password');
+        return;
+      }
+     
+      // Disable button and show loading state
+      continueBtn.disabled = true;
+      continueBtn.textContent = 'Verifying...';
+     
+      // Send AJAX request to verify password
+      const formData = new FormData();
+      formData.append('ajax', 'verify_afk_password');
+      formData.append('password', password);
+     
+      fetch(window.location.pathname, {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Password correct - resume session
+          updateAfkCountdownDisplay('Password correct! Resuming session...');
+          setTimeout(() => {
+            resumeSession();
+          }, 3000); // 3 second delay to show success message
+        } else {
+          // Password incorrect - show error
+          showAfkError(data.message || 'Invalid password');
+          continueBtn.disabled = false;
+          continueBtn.textContent = 'Continue Session';
+          passwordInput.focus();
+          passwordInput.select();
+         
+          // Restart countdown after wrong password
+          restartAfkCountdown();
+        }
+      })
+      .catch(error => {
+        console.error('Password verification error:', error);
+        showAfkError('Network error. Please try again.');
+        continueBtn.disabled = false;
+        continueBtn.textContent = 'Continue Session';
+        restartAfkCountdown();
+      });
+    };
+
+    function showAfkError(message) {
+      const errorDiv = document.getElementById('afkPasswordError');
+      if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+      }
+    }
+
+    function resumeSession() {
+      // Stop countdown timer
+      clearAfkCountdown();
+     
+      // Clear AFK flags
+      sessionStorage.removeItem('afkModalActive');
+      afkModalShown = false;
+     
+      // Hide modal
+      const afkModal = document.getElementById('afkModal');
+      if (afkModal) {
+        afkModal.style.display = 'none';
+      }
+     
+      // Restore previous state
+      restoreAfkState();
+     
+      // Restart AFK timer
+      resetAfkTimer();
+    }
+
+    function forceLogout() {
+      // Stop countdown timer
+      clearAfkCountdown();
+     
+      // Clear AFK flags
+      sessionStorage.removeItem('afkModalActive');
+      afkModalShown = false;
+     
+      // Call logout function with AFK logging
+      try {
+        logoutWithAFK();
+      } catch (err) {
+        console.error('Logout error from AFK timeout:', err);
+        // Fallback: log AFK logout and redirect
+        logAfkLogout().finally(() => {
+          window.location.href = 'Login.php';
+        });
       }
     }
 
@@ -2875,21 +3689,21 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Save basic page state
         const activeSidebar = localStorage.getItem('activeSidebar') || 'homeButton';
         sessionStorage.setItem('afkSavedSidebar', activeSidebar);
-        
+       
         // Save current week state
         sessionStorage.setItem('afkSavedWeekState', JSON.stringify(currentWeekState));
-        
+       
         // Enhanced content type detection - check actual content, not just sidebar
         let contentType = 'analytics'; // default
         const viewformContainer = document.getElementById('viewform-container');
-        
+       
         if (viewformContainer) {
           const viewformInner = viewformContainer.querySelector('.viewform-inner');
           if (viewformInner && viewformInner.innerHTML.trim()) {
             const content = viewformInner.innerHTML.toLowerCase();
-            
+           
             // Check for viewform-specific content patterns
-            if (content.includes('weekly accomplishment report') || 
+            if (content.includes('weekly accomplishment report') ||
                 content.includes('task accomplished') ||
                 content.includes('weekly-report-table') ||
                 content.includes('time-in') ||
@@ -2899,9 +3713,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 content.includes('week of')) {
               contentType = 'viewform';
               console.log('Detected viewform content');
-            } 
+            }
             // Check for analytics/dashboard content
-            else if (content.includes('analytics') || 
+            else if (content.includes('analytics') ||
                      content.includes('dashboard') ||
                      content.includes('chart') ||
                      content.includes('graph') ||
@@ -2937,9 +3751,9 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             contentType = 'analytics';
           }
         }
-        
+       
         sessionStorage.setItem('afkSavedContentType', contentType);
-        
+       
         // Save the current viewform content if in viewform view
         if (contentType === 'viewform') {
           // Save current week parameters for viewform restoration
@@ -2952,11 +3766,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             range: currentWeekState.range
           });
         }
-        
+       
         // Enhanced: Save ALL open modals and their states
         const openModals = [];
         const allModals = document.querySelectorAll('.modal');
-        
+       
         allModals.forEach(modal => {
           if (modal.style.display === 'flex' || modal.style.display === 'block') {
             if (modal.id !== 'afkModal') { // Don't save the AFK modal itself
@@ -2964,27 +3778,27 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 id: modal.id,
                 display: modal.style.display
               };
-              
+             
               // Save form data if it's a form modal
               if (modal.id === 'fillOutModal') {
                 const timeIn = document.getElementById('time-in');
                 const timeOut = document.getElementById('time-out');
                 const task = document.getElementById('task');
-                
+               
                 modalState.formData = {
                   timeIn: timeIn ? timeIn.value : '',
                   timeOut: timeOut ? timeOut.value : '',
                   task: task ? task.value : ''
                 };
               }
-              
+             
               // Save schedule modal state
               if (modal.id === 'scheduleModal') {
                 const scheduleData = {};
                 ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
                   const amSel = document.getElementById(`official-${day}-am`);
                   const pmSel = document.getElementById(`official-${day}-pm`);
-                  
+                 
                   scheduleData[day] = {
                     am: amSel ? amSel.value : '',
                     pm: pmSel ? pmSel.value : ''
@@ -2994,7 +3808,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                 scheduleData.company = company ? company.value : '';
                 modalState.scheduleData = scheduleData;
               }
-              
+             
               // Save week select modal state
               if (modal.id === 'weekSelectModal') {
                 const weekDropdown = document.getElementById('weekDropdown');
@@ -3003,7 +3817,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                   selectedIndex: weekDropdown ? weekDropdown.selectedIndex : -1
                 };
               }
-              
+             
               // Save profile modal states
               if (modal.id === 'userProfileModal' || modal.id === 'editProfileModal') {
                 modalState.profileData = {
@@ -3011,19 +3825,19 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                   wasOpen: true
                 };
               }
-              
+             
               openModals.push(modalState);
             }
           }
         });
-        
+       
         // Save all modal states
         if (openModals.length > 0) {
           sessionStorage.setItem('afkSavedModals', JSON.stringify(openModals));
         } else {
           sessionStorage.removeItem('afkSavedModals');
         }
-        
+       
         console.log('Complete state saved for AFK recovery:', {
           sidebar: activeSidebar,
           contentType: contentType,
@@ -3043,13 +3857,13 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const savedWeekState = sessionStorage.getItem('afkSavedWeekState');
         const savedModals = sessionStorage.getItem('afkSavedModals');
         const savedContentType = sessionStorage.getItem('afkSavedContentType');
-        
+       
         console.log('Restoring AFK state:', {
           sidebar: savedSidebar,
           contentType: savedContentType,
           weekState: savedWeekState
         });
-        
+       
         // Restore week state first
         if (savedWeekState) {
           try {
@@ -3059,7 +3873,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             console.warn('Failed to restore week state:', e);
           }
         }
-        
+       
         // Restore active sidebar IMMEDIATELY (before content loads)
         if (savedSidebar) {
           const sidebarItems = ['homeButton','fillButton','weekButton','scheduleButton'];
@@ -3067,7 +3881,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             const el = document.getElementById(id);
             if (el) el.classList.remove('active-nav');
           });
-          
+         
           const activeEl = document.getElementById(savedSidebar);
           if (activeEl) {
             activeEl.classList.add('active-nav');
@@ -3075,11 +3889,11 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             console.log('Restored sidebar state:', savedSidebar);
           }
         }
-        
+       
         // Determine what content to restore based on BOTH sidebar and content type
         let shouldRestoreViewform = false;
         let shouldRestoreAnalytics = false;
-        
+       
         if (savedContentType === 'viewform' || savedSidebar === 'weekButton') {
           shouldRestoreViewform = true;
         } else if (savedContentType === 'analytics' || savedSidebar === 'homeButton') {
@@ -3101,7 +3915,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         } else {
           shouldRestoreAnalytics = true; // fallback
         }
-        
+       
         // Restore base content
         setTimeout(() => {
           try {
@@ -3120,62 +3934,62 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             loadAnalytics();
           }
         }, 300);
-        
+       
         // Restore all modals with their states
         if (savedModals) {
           try {
             const modalStates = JSON.parse(savedModals);
             console.log('Restoring modals:', modalStates.map(m => m.id));
-            
+           
             // Restore modals after base content is loaded
             setTimeout(() => {
               modalStates.forEach(modalState => {
                 const modal = document.getElementById(modalState.id);
                 if (modal) {
                   modal.style.display = modalState.display || 'flex';
-                  
+                 
                   // Restore form data for fillOutModal
                   if (modalState.id === 'fillOutModal' && modalState.formData) {
                     const timeIn = document.getElementById('time-in');
                     const timeOut = document.getElementById('time-out');
                     const task = document.getElementById('task');
-                    
+                   
                     if (timeIn) timeIn.value = modalState.formData.timeIn || '';
                     if (timeOut) timeOut.value = modalState.formData.timeOut || '';
                     if (task) task.value = modalState.formData.task || '';
-                    
+                   
                     console.log('Restored fillOut form data');
                   }
-                  
+                 
                   // Restore schedule modal data
                   if (modalState.id === 'scheduleModal' && modalState.scheduleData) {
                     // First attach listeners and populate selects
                     try { attachScheduleListeners(); } catch (e) { console.error('attachScheduleListeners error', e); }
-                    
+                   
                     // Then restore the data
                     setTimeout(() => {
                       ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
                         if (modalState.scheduleData[day]) {
                           const amSel = document.getElementById(`official-${day}-am`);
                           const pmSel = document.getElementById(`official-${day}-pm`);
-                          
+                         
                           if (amSel) amSel.value = modalState.scheduleData[day].am || '';
                           if (pmSel) pmSel.value = modalState.scheduleData[day].pm || '';
-                          
+                         
                           updateDayDisplay(day);
                           updateHidden(day);
                         }
                       });
-                      
+                     
                       const company = document.getElementById('company');
                       if (company && modalState.scheduleData.company) {
                         company.value = modalState.scheduleData.company;
                       }
-                      
+                     
                       console.log('Restored schedule modal data');
                     }, 100);
                   }
-                  
+                 
                   // Restore week select modal data
                   if (modalState.id === 'weekSelectModal' && modalState.weekSelectData) {
                     const weekDropdown = document.getElementById('weekDropdown');
@@ -3184,14 +3998,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                     }
                     console.log('Restored week select modal data');
                   }
-                  
+                 
                   // Restore profile modals
                   if (modalState.id === 'userProfileModal' || modalState.id === 'editProfileModal') {
                     // Profile modals don't need special data restoration
                     modal.style.display = 'flex';
                     console.log('Restored profile modal');
                   }
-                  
+                 
                   console.log(`Restored modal: ${modalState.id}`);
                 }
               });
@@ -3200,7 +4014,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             console.error('Failed to restore modal states:', e);
           }
         }
-        
+       
         // Clean up all saved state
         sessionStorage.removeItem('afkSavedSidebar');
         sessionStorage.removeItem('afkSavedWeekState');
@@ -3209,7 +4023,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         sessionStorage.removeItem('afkSavedViewformWeek');
         sessionStorage.removeItem('afkSavedViewformYear');
         sessionStorage.removeItem('afkSavedViewformRange');
-        
+       
         console.log('Complete AFK state restored successfully');
       } catch (error) {
         console.error('Error restoring AFK state:', error);
@@ -3228,10 +4042,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
       // Clear the AFK flag ONLY when user properly responds
       sessionStorage.removeItem('afkModalActive');
       afkModalShown = false;
-      
+     
       // Close AFK modal
       closeAfkModal();
-      
+     
       // Call logout function with AFK logging
       try {
         logoutWithAFK();
@@ -3285,10 +4099,10 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
 
     // Events that indicate user activity
     const activityEvents = [
-      'mousedown', 
-      'mousemove', 
-      'keypress', 
-      'scroll', 
+      'mousedown',
+      'mousemove',
+      'keypress',
+      'scroll',
       'touchstart',
       'click'
     ];
@@ -3307,7 +4121,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
           restoreAfkState();
         }, 1000); // Wait for page to fully load
       }
-      
+     
       // Check if AFK modal was active before page refresh
       if (sessionStorage.getItem('afkModalActive') === 'true') {
         // Restore AFK modal state - don't let refresh dismiss it
@@ -3315,8 +4129,38 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         const afkModal = document.getElementById('afkModal');
         if (afkModal) {
           afkModal.style.display = 'flex';
+         
+          // Reset AFK countdown timer variables to ensure proper state
+          afkTimeRemaining = 30;
+          afkTimerPaused = false;
+         
+          // Clear any existing countdown timer
+          if (afkCountdownTimer) {
+            clearInterval(afkCountdownTimer);
+            afkCountdownTimer = null;
+          }
+         
+          // Start fresh countdown
+          startAfkCountdown();
+         
+          // Re-attach event listeners for password input (critical for pause/resume functionality)
+          const passwordInput = document.getElementById('afkPassword');
+          if (passwordInput) {
+            passwordInput.focus();
+            passwordInput.value = '';
+           
+            // Remove any existing event listeners to prevent duplicates
+            passwordInput.removeEventListener('input', handleAfkPasswordInput);
+            passwordInput.removeEventListener('keypress', handleAfkPasswordKeypress);
+            passwordInput.removeEventListener('blur', handleAfkPasswordBlur);
+           
+            // Add event listeners for this modal instance
+            passwordInput.addEventListener('input', handleAfkPasswordInput);
+            passwordInput.addEventListener('keypress', handleAfkPasswordKeypress);
+            passwordInput.addEventListener('blur', handleAfkPasswordBlur);
+          }
         }
-        // Don't start timer - user must respond to the modal
+        // Don't start main AFK timer - user must respond to the modal
       } else {
         // Normal page load - start AFK timer
         resetAfkTimer();
@@ -3395,7 +4239,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
             });
         })();
 
-        
+       
     </script>
 </body>
 </html>
