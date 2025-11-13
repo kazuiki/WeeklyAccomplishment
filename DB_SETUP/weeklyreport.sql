@@ -936,7 +936,7 @@ CREATE TABLE `users` (
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `is_admin` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = admin, 0 = student',
-  `is_locked` tinyint(1) DEFAULT 0,
+  `is_locked` tinyint(1) DEFAULT 0 COMMENT '0 = unlocked, 1 = auto-locked (failed attempts), 2 = admin-locked',
   `is_new` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = new account, 0 = existing account',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
