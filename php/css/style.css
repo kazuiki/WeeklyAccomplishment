@@ -1,4 +1,4 @@
-* {
+﻿* {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -392,6 +392,27 @@ body.modal-open .auth-card {
     max-width: 520px;
 }
 
+
+/* Generic modal close button (X) */
+.modal-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  color: #555;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background .2s ease, color .2s ease;
+}
+.modal-close-btn:hover {
+  background: #f0f0f5;
+  color: #222;
+}
+.modal-close-btn:active { transform: scale(.92); }
 .modal-content h2 {
     text-align: center;
     font-size: 24px;
@@ -481,6 +502,7 @@ body.modal-open .auth-card {
   margin-bottom: -5px;
   font-size: 12px;
   color: #666;
+  
 }
 
 #changePasswordModal .modal-content.recovery .input-group input,
@@ -1367,16 +1389,14 @@ body.modal-open .auth-card {
 }
 
 .error-notification::before {
-    content: "âœ•";
+    content: "";
     width: 24px;
     height: 24px;
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
-    font-weight: normal;
-    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="%23e3e3e3"><path d="M330-120 120-330v-300l210-210h300l210 210v300L630-120H330Zm36-190 114-114 114 114 56-56-114-114 114-114-56-56-114 114-114-114-56 56 114 114-114 114 56 56Zm-2 110h232l164-164v-232L596-760H364L200-596v232l164 164Zm116-280Z"/></svg>');
+    background-image: url('../img/wrong.png');
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -1409,16 +1429,14 @@ body.modal-open .auth-card {
 }
 
 .success-notification::before {
-  content: "âœ“";
+  content: "";
   width: 24px;
   height: 24px;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: normal;
-  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="%23ffffff"><path d="M330-120 120-330v-300l210-210h300l210 210v300L630-120H330Zm36-190 314-314-56-56-258 258-144-144-56 56 200 200Zm-2 110h232l164-164v-232L596-760H364L200-596v232l164 164Zm116-280Z"/></svg>');
+  background-image: url('../img/check.png');
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;

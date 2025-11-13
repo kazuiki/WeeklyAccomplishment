@@ -24,17 +24,16 @@ $adminError = "";
 $ADMIN_USERNAME = "admin";
 $ADMIN_PASSWORD = "admin";
 
-// AJAX: Admin change password
+// AJAX: Admin change password (forgot password for admin - no current password required)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "admin_change_password") {
     header('Content-Type: application/json');
     $email = $_POST["email"] ?? "";
-    $current_password = $_POST["current_password"] ?? "";
     $new_password = $_POST["new_password"] ?? "";
     $confirm_password = $_POST["confirm_password"] ?? "";
    
     $response = [ 'ok' => false, 'message' => 'Invalid request' ];
    
-    if (empty($email) || empty($current_password) || empty($new_password) || empty($confirm_password)) {
+    if (empty($email) || empty($new_password) || empty($confirm_password)) {
         $response = [ 'ok' => false, 'message' => 'All fields are required' ];
     } elseif ($new_password !== $confirm_password) {
         $response = [ 'ok' => false, 'message' => 'New passwords do not match' ];
@@ -52,23 +51,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
         } else {
             $stmt->bind_result($user_id, $db_password);
             $stmt->fetch();
-           
-            // Verify current password
-            if (!password_verify($current_password, $db_password)) {
-                $response = [ 'ok' => false, 'message' => 'Current password is incorrect' ];
+            // Directly allow reset (forgot password flow)
+            $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
+            $update_stmt = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+            $update_stmt->bind_param("si", $hashed_new_password, $user_id);
+            if ($update_stmt->execute()) {
+                $response = [ 'ok' => true, 'message' => 'Password changed successfully! Please use your new password on next login.' ];
             } else {
-                // Update password in database
-                $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
-                $update_stmt = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
-                $update_stmt->bind_param("si", $hashed_new_password, $user_id);
-               
-                if ($update_stmt->execute()) {
-                    $response = [ 'ok' => true, 'message' => 'Password changed successfully! Please use new password on next login.' ];
-                } else {
-                    $response = [ 'ok' => false, 'message' => 'Error updating password: ' . $update_stmt->error ];
-                }
-                $update_stmt->close();
+                $response = [ 'ok' => false, 'message' => 'Error updating password: ' . $update_stmt->error ];
             }
+            $update_stmt->close();
         }
         $stmt->close();
     }
@@ -201,7 +193,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
             $stmt->bind_result($user_id, $db_password, $is_locked);
             $stmt->fetch();
 
-            if ($is_locked) {
+            if ($is_locked > 0) {
                 // Log locked account attempt
                 $log = $conn->prepare("INSERT INTO login_attempts (users_user_id, ip_address, status) VALUES (?, ?, 'ACCOUNT_LOCKED')");
                 if ($log) {
@@ -209,7 +201,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
                     $log->execute();
                     $log->close();
                 }
-                $response = [ 'ok' => false, 'message' => 'Your account has been locked due to multiple failed attempts.' ];
+               
+                // Different messages based on lock type
+                if ($is_locked == 1) {
+                    $response = [ 'ok' => false, 'message' => 'Your account has been locked due to multiple failed login attempts. Please reset your password to unlock your account.' ];
+                } else if ($is_locked == 2) {
+                    $response = [ 'ok' => false, 'message' => 'Your account has been locked by an administrator. Please contact support for assistance.' ];
+                } else {
+                    $response = [ 'ok' => false, 'message' => 'Your account has been locked. Please contact support for assistance.' ];
+                }
             } elseif (password_verify($password, $db_password)) {
                 // Log successful login
                 $log = $conn->prepare("INSERT INTO login_attempts (users_user_id, ip_address, status) VALUES (?, ?, 'SUCCESS')");
@@ -436,8 +436,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmt->bind_result($user_id, $db_password, $is_locked);
             $stmt->fetch();
 
-            if ($is_locked) {
-                $error = "Your account has been locked due to multiple failed attempts.";
+            if ($is_locked > 0) {
+                // Different error messages based on lock type
+                if ($is_locked == 1) {
+                    $error = "Your account has been locked due to multiple failed login attempts. Please reset your password to unlock your account.";
+                } else if ($is_locked == 2) {
+                    $error = "Your account has been locked by an administrator. Please contact support for assistance.";
+                } else {
+                    $error = "Your account has been locked. Please contact support for assistance.";
+                }
 
                 $log = $conn->prepare("INSERT INTO login_attempts (users_user_id, ip_address, status) VALUES (?, ?, 'ACCOUNT_LOCKED')");
                 $log->bind_param("is", $user_id, $ip);
@@ -616,7 +623,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 } else {
                     $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
 
-                    $update = $conn->prepare("UPDATE users SET password = ?, is_locked = 0 WHERE user_id = ?");
+                    // Get current lock status to determine if we should unlock
+                    $lockCheck = $conn->prepare("SELECT is_locked FROM users WHERE user_id = ?");
+                    $lockCheck->bind_param("i", $user_id);
+                    $lockCheck->execute();
+                    $lockCheck->bind_result($current_lock);
+                    $lockCheck->fetch();
+                    $lockCheck->close();
+
+                    // Only unlock if it was auto-locked (1), don't unlock admin-locked (2) accounts
+                    if ($current_lock == 1) {
+                        $update = $conn->prepare("UPDATE users SET password = ?, is_locked = 0 WHERE user_id = ?");
+                    } else {
+                        $update = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+                    }
                     $update->bind_param("si", $hashed_new_password, $user_id);
                     if ($update->execute()) {
                         $success = "Password successfully changed!.";
@@ -817,8 +837,9 @@ $conn->close();
 </div>
 
 <!-- Signup Modal -->
-<div id="signupModal" class="modal" onclick="closeSignupModal()">
+<div id="signupModal" class="modal">
     <div class="modal-content recovery" onclick="event.stopPropagation()">
+        <button type="button" class="modal-close-btn" aria-label="Close signup" onclick="closeSignupModal()">×</button>
         <h2>Create your account</h2>
         <p class="modal-sub">Fill up login credential to create your account.</p>
         <form id="signupForm" method="POST" action="javascript:void(0)" autocomplete="off" novalidate>
@@ -948,17 +969,13 @@ $conn->close();
 <div id="adminPasswordModal" class="modal">
     <div class="modal-content admin-recovery">
         <br>
-        <h2>Change Admin Password</h2>
-        <p class="modal-sub">Enter your current password and choose a new one.</p>
+    <h2>Reset Admin Password</h2>
+    <p class="modal-sub">Enter your admin email and set a new password.</p>
         <br>
         <form id="adminPasswordForm">
             <div class="input-group float">
                 <input type="email" id="admin-email" name="email" placeholder=" " required>
                 <label for="admin-email">Admin Email</label>
-            </div>
-            <div class="input-group float">
-                <input type="password" id="admin-current-password" name="current_password" placeholder=" " required>
-                <label for="admin-current-password">Current Password</label>
             </div>
             <div class="input-group float">
                 <input type="password" id="admin-new-password" name="new_password" placeholder=" " required>
@@ -1680,20 +1697,21 @@ function openAdminPasswordModal() {
     const modal = document.getElementById('adminPasswordModal');
     if (!modal) return;
    
-    // Clear form
-    document.getElementById('admin-email').value = '';
-    document.getElementById('admin-current-password').value = '';
-    document.getElementById('admin-new-password').value = '';
-    document.getElementById('admin-confirm-password').value = '';
+    // Clear form (current password field no longer exists)
+    const adminEmailEl = document.getElementById('admin-email');
+    const adminNewPwEl = document.getElementById('admin-new-password');
+    const adminConfPwEl = document.getElementById('admin-confirm-password');
+    if (adminEmailEl) adminEmailEl.value = '';
+    if (adminNewPwEl) adminNewPwEl.value = '';
+    if (adminConfPwEl) adminConfPwEl.value = '';
     const adminPwErr = document.getElementById('admin-password-error');
     const adminConfErr = document.getElementById('admin-confirm-error');
     if (adminPwErr) adminPwErr.textContent = '';
     if (adminConfErr) adminConfErr.textContent = '';
     const showPw = document.getElementById('admin-show-password');
     if (showPw) showPw.checked = false;
-    document.getElementById('admin-current-password').type = 'password';
-    document.getElementById('admin-new-password').type = 'password';
-    document.getElementById('admin-confirm-password').type = 'password';
+    if (adminNewPwEl) adminNewPwEl.type = 'password';
+    if (adminConfPwEl) adminConfPwEl.type = 'password';
    
     document.body.classList.add('modal-open');
     modal.style.display = 'flex';
@@ -1729,7 +1747,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 // Only close other modals, not changePasswordModal
-                if (modal.id === 'signupModal') closeSignupModal();
+                if (modal.id === 'signupModal') return; // disable background close for signup modal
                 else if (modal.id === 'signupSuccessModal') closeSignupSuccessModal();
                 else if (modal.id === 'signupErrorModal') closeSignupErrorModal();
                 // Removed changePasswordModal from this list

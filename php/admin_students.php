@@ -23,7 +23,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'get_session_status') {
     
     $query = "SELECT 
                 u.user_id,
-                COALESCE(s.is_active, 0) as session_active
+                COALESCE(s.is_active, 0) as session_active,
+                u.is_locked
               FROM users u
               LEFT JOIN sessions s ON u.user_id = s.users_user_id
               ORDER BY u.user_id ASC";
@@ -41,12 +42,54 @@ if (isset($_POST['action']) && $_POST['action'] === 'get_session_status') {
     exit();
 }
 
+// Handle AJAX request for admin lock/unlock functionality
+if (isset($_POST['action']) && $_POST['action'] === 'toggle_lock') {
+    header('Content-Type: application/json');
+    
+    $user_id = intval($_POST['user_id'] ?? 0);
+    $current_lock_state = intval($_POST['current_lock_state'] ?? 0);
+    
+    if ($user_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid user ID']);
+        exit();
+    }
+    
+    // Determine new lock state
+    // If currently unlocked (0) or auto-locked (1), set to admin-locked (2)
+    // If currently admin-locked (2), set to unlocked (0)
+    $new_lock_state = ($current_lock_state == 2) ? 0 : 2;
+    
+    $update_query = "UPDATE users SET is_locked = ? WHERE user_id = ? AND is_admin = 0";
+    $stmt = $conn->prepare($update_query);
+    
+    if ($stmt) {
+        $stmt->bind_param("ii", $new_lock_state, $user_id);
+        
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
+            $action = ($new_lock_state == 2) ? 'locked' : 'unlocked';
+            echo json_encode([
+                'success' => true, 
+                'message' => "User successfully {$action}",
+                'new_lock_state' => $new_lock_state
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to update user lock status']);
+        }
+        $stmt->close();
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Database error']);
+    }
+    
+    exit();
+}
+
 // Get all students (excluding admins) with their statistics and session status
 $students_query = "SELECT 
             u.user_id,
             u.username,
             u.email,
             u.created_at,
+            u.is_locked,
             COUNT(wa.id) as total_logs,
             COALESCE(SUM(wa.grand_total), 0) as total_hours,
             MAX(wa.date_record) as last_log_date,
@@ -58,7 +101,7 @@ $students_query = "SELECT
           LEFT JOIN student_info si ON u.user_id = si.users_user_id
           LEFT JOIN sessions s ON u.user_id = s.users_user_id
           WHERE u.is_admin = 0
-          GROUP BY u.user_id, u.username, u.email, u.created_at, si.profile_picture, si.profile_picture_type, s.is_active
+          GROUP BY u.user_id, u.username, u.email, u.created_at, u.is_locked, si.profile_picture, si.profile_picture_type, s.is_active
           ORDER BY u.username ASC";
 
 $students_result = $conn->query($students_query);
@@ -585,6 +628,51 @@ $admin_count = $admins_result->num_rows;
             color: #721c24;
         }
         
+        .status-unlocked {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-auto-locked {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-admin-locked {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .lock-toggle-btn {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 80px;
+        }
+        
+        .lock-toggle-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+        }
+        
+        .lock-toggle-btn:active {
+            transform: translateY(0);
+        }
+        
+        .lock-toggle-btn[data-lock-state="2"] {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        
+        .lock-toggle-btn[data-lock-state="2"]:hover {
+            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+        }
+        
         /* Fade transition for content */
         .fade-out {
             animation: fadeOut 0.2s ease forwards;
@@ -936,7 +1024,7 @@ $admin_count = $admins_result->num_rows;
                     const badge = card.querySelector('.badge');
                     if (badge) {
                         badge.className = `badge ${isActive ? 'badge-active' : 'badge-inactive'}`;
-                        badge.textContent = isActive ? '✓' : '✗';
+                        badge.textContent = isActive ? '?' : '?';
                     }
                     
                     // Update avatar indicator
@@ -956,8 +1044,67 @@ $admin_count = $admins_result->num_rows;
                             avatar.appendChild(indicator);
                         }
                     }
+                    
+                    // Update lock button if present
+                    const lockButton = card.querySelector('.lock-toggle-btn');
+                    if (lockButton && typeof student.is_locked !== 'undefined') {
+                        const lockState = parseInt(student.is_locked);
+                        lockButton.setAttribute('data-lock-state', lockState);
+                        lockButton.textContent = (lockState == 2) ? '🔓 Unlock' : '🔒 Lock';
+                    }
                 }
             });
+        }
+
+        // Function to toggle user lock status
+        async function toggleUserLock(userId, currentLockState) {
+            try {
+                const response = await fetch('admin_students.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `action=toggle_lock&user_id=${userId}&current_lock_state=${currentLockState}`
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Update the button and row data
+                        const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+                        const button = document.querySelector(`button[data-user-id="${userId}"]`);
+                        
+                        if (row && button) {
+                            const newLockState = result.new_lock_state;
+                            
+                            // Update row data attribute
+                            row.setAttribute('data-lock-state', newLockState);
+                            
+                            // Update button
+                            button.setAttribute('data-lock-state', newLockState);
+                            button.textContent = (newLockState == 2) ? '🔓 Unlock' : '🔒 Lock';
+                            button.onclick = () => toggleUserLock(userId, newLockState);
+                            
+                        }
+                        
+                        // Show success message
+                        showUpdateIndicator();
+                        const indicator = document.getElementById('updateIndicator');
+                        if (indicator) {
+                            indicator.textContent = result.message;
+                            indicator.style.background = 'rgba(40, 167, 69, 0.95)';
+                        }
+                    } else {
+                        alert('Error: ' + result.message);
+                    }
+                } else {
+                    alert('Failed to communicate with server');
+                }
+            } catch (error) {
+                console.error('Error toggling user lock:', error);
+                alert('An error occurred while updating user lock status');
+            }
         }
 
         // Function to show update indicator
@@ -1118,12 +1265,12 @@ $admin_count = $admins_result->num_rows;
     
     <nav class="navbar">
         <h1>
-            <img src="img/group.png" alt="All Users" style="width:24px;height:24px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.insertBefore(document.createTextNode('👥 '), this);">
+            <img src="img/group.png" alt="All Users" style="width:24px;height:24px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.insertBefore(document.createTextNode('?? '), this);">
             All Users
         </h1>
         <div class="navbar-links">
             <a href="admin_dashboard.php" class="nav-link">
-                <img src="img/ui.png" alt="Dashboard" style="width:18px;height:18px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.insertBefore(document.createTextNode('📊 '), this);">
+                <img src="img/ui.png" alt="Dashboard" style="width:18px;height:18px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;" onerror="this.style.display='none'; this.parentNode.insertBefore(document.createTextNode('?? '), this);">
                 Dashboard
             </a>
             <a href="?logout=1" class="nav-link">Logout</a>
@@ -1211,17 +1358,38 @@ $admin_count = $admins_result->num_rows;
                                     <th>Last Log</th>
                                     <th>Joined Date</th>
                                     <th>Status</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php while ($student = $students_result->fetch_assoc()): ?>
-                                    <?php $isActive = ($student['session_active'] == 1); ?>
-                                    <tr onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;">
-                                        <td><strong><?php echo htmlspecialchars($student['username']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($student['email']); ?></td>
-                                        <td><?php echo number_format($student['total_logs']); ?></td>
-                                        <td><?php echo number_format($student['total_hours'], 1); ?></td>
-                                        <td>
+                                    <?php 
+                                        $isActive = ($student['session_active'] == 1);
+                                        $lockState = intval($student['is_locked']);
+                                        $lockStatusText = '';
+                                        $lockStatusClass = '';
+                                        
+                                        switch ($lockState) {
+                                            case 0:
+                                                $lockStatusText = 'Unlocked';
+                                                $lockStatusClass = 'status-unlocked';
+                                                break;
+                                            case 1:
+                                                $lockStatusText = 'Auto-locked';
+                                                $lockStatusClass = 'status-auto-locked';
+                                                break;
+                                            case 2:
+                                                $lockStatusText = 'Admin-locked';
+                                                $lockStatusClass = 'status-admin-locked';
+                                                break;
+                                        }
+                                    ?>
+                                    <tr data-user-id="<?php echo $student['user_id']; ?>" data-lock-state="<?php echo $lockState; ?>">
+                                        <td onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;"><strong><?php echo htmlspecialchars($student['username']); ?></strong></td>
+                                        <td onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;"><?php echo htmlspecialchars($student['email']); ?></td>
+                                        <td onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;"><?php echo number_format($student['total_logs']); ?></td>
+                                        <td onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;"><?php echo number_format($student['total_hours'], 1); ?></td>
+                                        <td onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;">
                                             <?php 
                                             if ($student['last_log_date']) {
                                                 echo date('M d, Y', strtotime($student['last_log_date']));
@@ -1230,11 +1398,19 @@ $admin_count = $admins_result->num_rows;
                                             }
                                             ?>
                                         </td>
-                                        <td><?php echo date('M d, Y', strtotime($student['created_at'])); ?></td>
-                                        <td>
+                                        <td onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;"><?php echo date('M d, Y', strtotime($student['created_at'])); ?></td>
+                                        <td onclick="window.location.href='admin_student_detail.php?id=<?php echo $student['user_id']; ?>'" style="cursor: pointer;">
                                             <span class="status-badge <?php echo $isActive ? 'status-active' : 'status-inactive'; ?>">
                                                 <?php echo $isActive ? 'Active' : 'Inactive'; ?>
                                             </span>
+                                        </td>
+                                        <td>
+                                            <button class="lock-toggle-btn" 
+                                                    onclick="toggleUserLock(<?php echo $student['user_id']; ?>, <?php echo $lockState; ?>)" 
+                                                    data-user-id="<?php echo $student['user_id']; ?>"
+                                                    data-lock-state="<?php echo $lockState; ?>">
+                                                <?php echo ($lockState == 2) ? '🔓 Unlock' : '🔒 Lock'; ?>
+                                            </button>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
@@ -1243,7 +1419,7 @@ $admin_count = $admins_result->num_rows;
                     </div>
                 <?php else: ?>
                     <div class="no-students">
-                        <div class="no-students-icon">👥</div>
+                        <div class="no-students-icon">??</div>
                         <h3>No students found</h3>
                         <p>There are no registered students in the system yet.</p>
                     </div>
@@ -1450,7 +1626,7 @@ $admin_count = $admins_result->num_rows;
             
             // Previous button
             const prevBtn = document.createElement('button');
-            prevBtn.textContent = '‹';
+            prevBtn.textContent = '�';
             prevBtn.onclick = () => changePage(tableType, currentPage[tableType] - 1, totalPages);
             prevBtn.disabled = currentPage[tableType] === 1;
             paginationDiv.appendChild(prevBtn);
@@ -1468,7 +1644,7 @@ $admin_count = $admins_result->num_rows;
             
             // Next button
             const nextBtn = document.createElement('button');
-            nextBtn.textContent = '›';
+            nextBtn.textContent = '�';
             nextBtn.onclick = () => changePage(tableType, currentPage[tableType] + 1, totalPages);
             nextBtn.disabled = currentPage[tableType] === totalPages;
             paginationDiv.appendChild(nextBtn);
