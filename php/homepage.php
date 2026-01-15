@@ -918,6 +918,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Quezon City University - OJT Activity Log</title>
+    <link rel="icon" type="image/png" href="img/qcu.png">
         <link rel="stylesheet" href="css/homepage.css">
         <!-- Font Awesome for icons in the sidebar -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -2024,6 +2025,14 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
     function openEditProfileModal() {
         const em = document.getElementById("editProfileModal");
         if (em) em.style.display = "flex";
+        // Clear any previous gentle reminder outline when opening
+        try {
+            const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+            if (fileGroup) {
+                fileGroup.classList.remove('missing-image');
+                fileGroup.classList.remove('pulsing');
+            }
+        } catch (e) { /* noop */ }
     }
 
     function closeEditProfileModal() {
@@ -2110,6 +2119,7 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
         // Hook the edit profile form submit to set the reopen flag when saving
         const editForm = document.getElementById('editProfileForm');
         if (editForm) {
+            // Gentle reminder on submit if no image selected and image is required
             editForm.addEventListener('submit', function (e) {
                 try {
                     // If the edit modal was opened from the user profile, set flag so it reopens after reload
@@ -2117,7 +2127,57 @@ if ($pic_check = $conn->prepare("SELECT profile_picture, profile_picture_type FR
                         localStorage.setItem('reopenUserProfile', '1');
                     }
                 } catch (err) { /* ignore */ }
+
+                try {
+                    const fileInput = document.getElementById('profile_picture');
+                    const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                    if (fileInput && fileInput.hasAttribute('required') && (!fileInput.files || fileInput.files.length === 0)) {
+                        if (fileGroup) fileGroup.classList.add('missing-image');
+                        // Do not prevent default here; let browser required validation run
+                    }
+                } catch (err) { /* ignore */ }
             });
+
+            // Remove reminder immediately after the user selects a file
+            const picInput = document.getElementById('profile_picture');
+            if (picInput) {
+                // In some browsers, submit handler doesn't run if native validation fails.
+                // Add a click handler on the Save button to ensure the reminder appears.
+                const saveBtn = document.getElementById('editProfileSaveBtn');
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', function () {
+                        const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                        if (picInput.hasAttribute('required') && (!picInput.files || picInput.files.length === 0)) {
+                            if (fileGroup) {
+                                fileGroup.classList.add('missing-image');
+                                // retrigger minimal glow
+                                fileGroup.classList.remove('pulsing');
+                                void fileGroup.offsetWidth; // force reflow
+                                fileGroup.classList.add('pulsing');
+                            }
+                        }
+                    });
+                }
+
+                // Also respond to native invalid events on the input
+                picInput.addEventListener('invalid', function () {
+                    const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                    if (fileGroup) {
+                        fileGroup.classList.add('missing-image');
+                        fileGroup.classList.remove('pulsing');
+                        void fileGroup.offsetWidth; // force reflow
+                        fileGroup.classList.add('pulsing');
+                    }
+                });
+
+                picInput.addEventListener('change', function () {
+                    const fileGroup = document.querySelector('#editProfileForm .form-group.file-input');
+                    if (picInput.files && picInput.files.length > 0 && fileGroup) {
+                        fileGroup.classList.remove('missing-image');
+                        fileGroup.classList.remove('pulsing');
+                    }
+                });
+            }
         }
     });
 

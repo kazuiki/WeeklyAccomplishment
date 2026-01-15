@@ -1,6 +1,9 @@
 <?php
 session_start();
 
+// Use centralized DB connection - moved to top for AJAX handlers
+require_once __DIR__ . '/db.php';
+
 if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true) {
     header("Location: homepage.php");
     exit();
@@ -21,30 +24,47 @@ $adminError = "";
 $ADMIN_USERNAME = "admin";
 $ADMIN_PASSWORD = "admin";
 
-// AJAX: Admin change password
+// AJAX: Admin change password (forgot password for admin - no current password required)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "admin_change_password") {
     header('Content-Type: application/json');
-    $current_password = $_POST["current_password"] ?? "";
+    $email = $_POST["email"] ?? "";
     $new_password = $_POST["new_password"] ?? "";
     $confirm_password = $_POST["confirm_password"] ?? "";
-    
+   
     $response = [ 'ok' => false, 'message' => 'Invalid request' ];
-    
-    if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
+   
+    if (empty($email) || empty($new_password) || empty($confirm_password)) {
         $response = [ 'ok' => false, 'message' => 'All fields are required' ];
-    } elseif ($current_password !== $ADMIN_PASSWORD) {
-        $response = [ 'ok' => false, 'message' => 'Current password is incorrect' ];
     } elseif ($new_password !== $confirm_password) {
         $response = [ 'ok' => false, 'message' => 'New passwords do not match' ];
     } elseif (strlen($new_password) < 4) {
         $response = [ 'ok' => false, 'message' => 'New password must be at least 4 characters' ];
     } else {
-        // In a real application, you would update the password in a database
-        // For now, we'll just return success
-        // TODO: Update $ADMIN_PASSWORD or store in database
-        $response = [ 'ok' => true, 'message' => 'Password changed successfully! Please use new password on next login.' ];
+        // Find admin user by email
+        $stmt = $conn->prepare("SELECT user_id, password FROM users WHERE email = ? AND is_admin = 1");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $stmt->store_result();
+       
+        if ($stmt->num_rows === 0) {
+            $response = [ 'ok' => false, 'message' => 'Admin email not found' ];
+        } else {
+            $stmt->bind_result($user_id, $db_password);
+            $stmt->fetch();
+            // Directly allow reset (forgot password flow)
+            $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
+            $update_stmt = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+            $update_stmt->bind_param("si", $hashed_new_password, $user_id);
+            if ($update_stmt->execute()) {
+                $response = [ 'ok' => true, 'message' => 'Password changed successfully! Please use your new password on next login.' ];
+            } else {
+                $response = [ 'ok' => false, 'message' => 'Error updating password: ' . $update_stmt->error ];
+            }
+            $update_stmt->close();
+        }
+        $stmt->close();
     }
-    
+   
     echo json_encode($response);
     exit();
 }
@@ -58,25 +78,44 @@ $old = [
     'change_email' => '',
 ];
 
-// Use centralized DB connection
-require_once __DIR__ . '/db.php';
-
 // AJAX: Admin login
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["ajax"] === "admin_login") {
     header('Content-Type: application/json');
     $username = trim($_POST["username"] ?? "");
     $password = $_POST["password"] ?? "";
-    
+   
     $response = [ 'ok' => false, 'message' => 'Invalid request' ];
-    
+   
+    // First check hardcoded admin credentials for backward compatibility
     if ($username === $ADMIN_USERNAME && $password === $ADMIN_PASSWORD) {
         $_SESSION["admin_loggedin"] = true;
         $_SESSION["admin_username"] = $username;
         $response = [ 'ok' => true, 'message' => 'Admin login successful' ];
     } else {
-        $response = [ 'ok' => false, 'message' => 'Invalid admin credentials!' ];
+        // Check database for admin users (is_admin = 1)
+        $stmt = $conn->prepare("SELECT user_id, password, username FROM users WHERE username = ? AND is_admin = 1");
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+        $stmt->store_result();
+       
+        if ($stmt->num_rows > 0) {
+            $stmt->bind_result($user_id, $db_password, $db_username);
+            $stmt->fetch();
+           
+            if (password_verify($password, $db_password)) {
+                $_SESSION["admin_loggedin"] = true;
+                $_SESSION["admin_username"] = $db_username;
+                $_SESSION["admin_user_id"] = $user_id;
+                $response = [ 'ok' => true, 'message' => 'Admin login successful' ];
+            } else {
+                $response = [ 'ok' => false, 'message' => 'Invalid admin credentials!' ];
+            }
+        } else {
+            $response = [ 'ok' => false, 'message' => 'Invalid admin credentials!' ];
+        }
+        $stmt->close();
     }
-    
+   
     echo json_encode($response);
     exit();
 }
@@ -140,7 +179,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $stmt->store_result();
-        
+       
         if ($stmt->num_rows === 0) {
             // Log attempt for non-existent user
             $log = $conn->prepare("INSERT INTO login_attempts (users_user_id, ip_address, status) VALUES (NULL, ?, 'USER_NOT_FOUND')");
@@ -154,7 +193,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
             $stmt->bind_result($user_id, $db_password, $is_locked);
             $stmt->fetch();
 
-            if ($is_locked) {
+            if ($is_locked > 0) {
                 // Log locked account attempt
                 $log = $conn->prepare("INSERT INTO login_attempts (users_user_id, ip_address, status) VALUES (?, ?, 'ACCOUNT_LOCKED')");
                 if ($log) {
@@ -162,7 +201,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
                     $log->execute();
                     $log->close();
                 }
-                $response = [ 'ok' => false, 'message' => 'Your account has been locked due to multiple failed attempts.' ];
+               
+                // Different messages based on lock type
+                if ($is_locked == 1) {
+                    $response = [ 'ok' => false, 'message' => 'Your account has been locked due to multiple failed login attempts. Please reset your password to unlock your account.' ];
+                } else if ($is_locked == 2) {
+                    $response = [ 'ok' => false, 'message' => 'Your account has been locked by an administrator. Please contact support for assistance.' ];
+                } else {
+                    $response = [ 'ok' => false, 'message' => 'Your account has been locked. Please contact support for assistance.' ];
+                }
             } elseif (password_verify($password, $db_password)) {
                 // Log successful login
                 $log = $conn->prepare("INSERT INTO login_attempts (users_user_id, ip_address, status) VALUES (?, ?, 'SUCCESS')");
@@ -174,13 +221,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
 
                 // Generate new session token
                 $token = bin2hex(random_bytes(32));
-                
+               
                 // Check if user already has a session record
                 $checkSession = $conn->prepare("SELECT sessions_id FROM sessions WHERE users_user_id = ? LIMIT 1");
                 $checkSession->bind_param("i", $user_id);
                 $checkSession->execute();
                 $checkSession->store_result();
-                
+               
                 if ($checkSession->num_rows > 0) {
                     // Update existing session
                     $update = $conn->prepare("UPDATE sessions SET token = ?, is_active = 1 WHERE users_user_id = ?");
@@ -194,7 +241,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
                     $insert->execute();
                     $insert->close();
                 }
-                
+               
                 $checkSession->close();
 
                 $_SESSION["loggedin"] = true;
@@ -207,15 +254,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
                 // Check for previous failed attempts before logging this one
                 $countStmt = $conn->prepare("
                     SELECT COUNT(*) FROM (
-                        SELECT status 
-                        FROM login_attempts 
-                        WHERE users_user_id = ? 
-                        ORDER BY attempt_time DESC 
+                        SELECT status
+                        FROM login_attempts
+                        WHERE users_user_id = ?
+                        ORDER BY attempt_time DESC
                         LIMIT 2
-                    ) AS last_attempts 
+                    ) AS last_attempts
                     WHERE status = 'INVALID_PASSWORD'
                 ");
-                
+               
                 if ($countStmt) {
                     $countStmt->bind_param("i", $user_id);
                     $countStmt->execute();
@@ -239,7 +286,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
                             $lock->execute();
                             $lock->close();
                         }
-                        
+                       
                         $response = [ 'ok' => false, 'message' => 'Your account has been locked due to multiple failed attempts.' ];
                     } else {
                         // Log as normal invalid password attempt
@@ -249,7 +296,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["ajax"]) && $_POST["aj
                             $log->execute();
                             $log->close();
                         }
-                        
+                       
                         $response = [ 'ok' => false, 'message' => 'Invalid username or password!' ];
                     }
                 }
@@ -389,8 +436,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmt->bind_result($user_id, $db_password, $is_locked);
             $stmt->fetch();
 
-            if ($is_locked) {
-                $error = "Your account has been locked due to multiple failed attempts.";
+            if ($is_locked > 0) {
+                // Different error messages based on lock type
+                if ($is_locked == 1) {
+                    $error = "Your account has been locked due to multiple failed login attempts. Please reset your password to unlock your account.";
+                } else if ($is_locked == 2) {
+                    $error = "Your account has been locked by an administrator. Please contact support for assistance.";
+                } else {
+                    $error = "Your account has been locked. Please contact support for assistance.";
+                }
 
                 $log = $conn->prepare("INSERT INTO login_attempts (users_user_id, ip_address, status) VALUES (?, ?, 'ACCOUNT_LOCKED')");
                 $log->bind_param("is", $user_id, $ip);
@@ -415,7 +469,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $checkSession->bind_param("i", $user_id);
                 $checkSession->execute();
                 $checkSession->store_result();
-                
+               
                 if ($checkSession->num_rows > 0) {
                     // Update existing session
                     $update = $conn->prepare("UPDATE sessions SET token = ?, is_active = 1 WHERE users_user_id = ?");
@@ -429,7 +483,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $insert->execute();
                     $insert->close();
                 }
-                
+               
                 $checkSession->close();
 
                 header("Location: homepage.php");
@@ -504,7 +558,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $exists->close();
             } else {
                 $exists->close();
-                
+               
                 // Check for existing email
                 $emailExists = $conn->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
                 $emailExists->bind_param("s", $signup_email);
@@ -515,7 +569,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $emailExists->close();
                 } else {
                     $emailExists->close();
-                    
+                   
                     $hashed_password = password_hash($signup_password, PASSWORD_DEFAULT);
 
                     // mark new accounts with is_new = 1
@@ -569,7 +623,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 } else {
                     $hashed_new_password = password_hash($new_password, PASSWORD_DEFAULT);
 
-                    $update = $conn->prepare("UPDATE users SET password = ?, is_locked = 0 WHERE user_id = ?");
+                    // Get current lock status to determine if we should unlock
+                    $lockCheck = $conn->prepare("SELECT is_locked FROM users WHERE user_id = ?");
+                    $lockCheck->bind_param("i", $user_id);
+                    $lockCheck->execute();
+                    $lockCheck->bind_result($current_lock);
+                    $lockCheck->fetch();
+                    $lockCheck->close();
+
+                    // Only unlock if it was auto-locked (1), don't unlock admin-locked (2) accounts
+                    if ($current_lock == 1) {
+                        $update = $conn->prepare("UPDATE users SET password = ?, is_locked = 0 WHERE user_id = ?");
+                    } else {
+                        $update = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+                    }
                     $update->bind_param("si", $hashed_new_password, $user_id);
                     if ($update->execute()) {
                         $success = "Password successfully changed!.";
@@ -600,8 +667,9 @@ $conn->close();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Login Page</title>
+<link rel="icon" type="image/png" href="img/qcu.png">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="css/style.css?v=<?= time() ?>">
+<link rel="stylesheet" href="css/style.css">
 <style>
 /* Inline field validation messages: small, left-aligned, red */
 .field-validation {
@@ -769,8 +837,9 @@ $conn->close();
 </div>
 
 <!-- Signup Modal -->
-<div id="signupModal" class="modal" onclick="closeSignupModal()">
+<div id="signupModal" class="modal">
     <div class="modal-content recovery" onclick="event.stopPropagation()">
+        <button type="button" class="modal-close-btn" aria-label="Close signup" onclick="closeSignupModal()">×</button>
         <h2>Create your account</h2>
         <p class="modal-sub">Fill up login credential to create your account.</p>
         <form id="signupForm" method="POST" action="javascript:void(0)" autocomplete="off" novalidate>
@@ -900,13 +969,13 @@ $conn->close();
 <div id="adminPasswordModal" class="modal">
     <div class="modal-content admin-recovery">
         <br>
-        <h2>Change Admin Password</h2>
-        <p class="modal-sub">Enter your current password and choose a new one.</p>
+    <h2>Reset Admin Password</h2>
+    <p class="modal-sub">Enter your admin email and set a new password.</p>
         <br>
-        <form id="adminPasswordForm" style="margin-top:-25px;">
+        <form id="adminPasswordForm">
             <div class="input-group float">
-                <input type="password" id="admin-current-password" name="current_password" placeholder=" " required>
-                <label for="admin-current-password">Current Password</label>
+                <input type="email" id="admin-email" name="email" placeholder=" " required>
+                <label for="admin-email">Admin Email</label>
             </div>
             <div class="input-group float">
                 <input type="password" id="admin-new-password" name="new_password" placeholder=" " required>
@@ -987,15 +1056,15 @@ function showFloatingNotification(message, type = 'error') {
 function switchToAdminLogin() {
     const studentView = document.getElementById('studentLoginView');
     const adminView = document.getElementById('adminLoginView');
-    
+   
     // Fade out student view
     studentView.classList.remove('fade-in');
     studentView.classList.add('fade-out');
-    
+   
     setTimeout(() => {
         studentView.style.display = 'none';
         adminView.style.display = 'block';
-        
+       
         // Fade in admin view
         setTimeout(() => {
             adminView.classList.remove('fade-out');
@@ -1007,15 +1076,15 @@ function switchToAdminLogin() {
 function switchToStudentLogin() {
     const studentView = document.getElementById('studentLoginView');
     const adminView = document.getElementById('adminLoginView');
-    
+   
     // Fade out admin view
     adminView.classList.remove('fade-in');
     adminView.classList.add('fade-out');
-    
+   
     setTimeout(() => {
         adminView.style.display = 'none';
         studentView.style.display = 'block';
-        
+       
         // Fade in student view
         setTimeout(() => {
             studentView.classList.remove('fade-out');
@@ -1060,7 +1129,7 @@ document.getElementById('adminLoginForm').addEventListener('submit', function(e)
     })
     .finally(() => {
         btn.disabled = false;
-        btn.textContent = 'Login as Admin';
+        btn.textContent = 'Logging in';
     });
 });
 
@@ -1126,7 +1195,7 @@ document.addEventListener('DOMContentLoaded', function() {
         sendCodeBtn.addEventListener('click', function(e) {
             e.preventDefault();
             const email = document.getElementById('change-email').value;
-            
+           
             if (!email) {
                 showFloatingNotification('Please enter your email address', 'error');
                 return;
@@ -1304,7 +1373,7 @@ function goToRecoveryStep(step) {
 function openSignupModal() {
     const modal = document.getElementById('signupModal');
     if (!modal) return;
-    
+   
     document.body.classList.add('modal-open');
     modal.style.display = 'flex';
     requestAnimationFrame(() => {
@@ -1315,7 +1384,7 @@ function openSignupModal() {
 function openChangePasswordModal() {
     const modal = document.getElementById('changePasswordModal');
     if (!modal) return;
-    
+   
     // Reset to step 1
     otpVerified = false;
     const nextBtn = document.getElementById('nextStepBtn');
@@ -1337,7 +1406,7 @@ function openChangePasswordModal() {
     if (npField) npField.type = 'password';
     if (cpField) cpField.type = 'password';
     goToRecoveryStep(1);
-    
+   
     document.body.classList.add('modal-open');
     modal.style.display = 'flex';
     requestAnimationFrame(() => {
@@ -1478,7 +1547,7 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
     .then(r => r.json())
     .then(j => {
         showFloatingNotification(j.message || (j.ok ? 'Password successfully changed!' : 'Failed to change password'), j.ok ? 'success' : 'error');
-        if (j.ok) { 
+        if (j.ok) {
             // Clear all fields in the form
             document.getElementById('change-email').value = '';
             document.getElementById('verification-code').value = '';
@@ -1495,11 +1564,11 @@ document.getElementById('changePasswordForm').addEventListener('submit', functio
         }
     })
     .catch(() => showFloatingNotification('Network error. Please try again.', 'error'))
-    .finally(() => { 
-        if (resetBtn) { 
-            resetBtn.disabled = false; 
-            resetBtn.textContent = 'Reset'; 
-        } 
+    .finally(() => {
+        if (resetBtn) {
+            resetBtn.disabled = false;
+            resetBtn.textContent = 'Reset';
+        }
     });
 });
 
@@ -1556,7 +1625,7 @@ if (!empty($changePasswordError)) { ?>
 function closeSignupModal() {
     const modal = document.getElementById('signupModal');
     if (!modal) return;
-    
+   
     if (!keepOverlayForStatus) {
         document.body.classList.remove('modal-open');
     }
@@ -1571,7 +1640,7 @@ function closeSignupModal() {
 function closeSignupSuccessModal() {
     const modal = document.getElementById('signupSuccessModal');
     if (!modal) return;
-    
+   
     document.body.classList.remove('modal-open');
     modal.classList.remove('show');
     setTimeout(() => {
@@ -1583,7 +1652,7 @@ function closeSignupSuccessModal() {
 function closeSignupErrorModal() {
     const modal = document.getElementById('signupErrorModal');
     if (!modal) return;
-    
+   
     document.body.classList.remove('modal-open');
     modal.classList.remove('show');
     setTimeout(() => {
@@ -1604,7 +1673,7 @@ function backToSignupFromError() {
 function closeLoginErrorModal() {
     const modal = document.getElementById('loginErrorModal');
     if (!modal) return;
-    
+   
     document.body.classList.remove('modal-open');
     modal.classList.remove('show');
     setTimeout(() => {
@@ -1615,7 +1684,7 @@ function closeLoginErrorModal() {
 function closeChangePasswordModal() {
     const modal = document.getElementById('changePasswordModal');
     if (!modal) return;
-    
+   
     // Only close if explicitly called (e.g., by cancel button)
     document.body.classList.remove('modal-open');
     modal.classList.remove('show');
@@ -1627,21 +1696,23 @@ function closeChangePasswordModal() {
 function openAdminPasswordModal() {
     const modal = document.getElementById('adminPasswordModal');
     if (!modal) return;
-    
-    // Clear form
-    document.getElementById('admin-current-password').value = '';
-    document.getElementById('admin-new-password').value = '';
-    document.getElementById('admin-confirm-password').value = '';
+   
+    // Clear form (current password field no longer exists)
+    const adminEmailEl = document.getElementById('admin-email');
+    const adminNewPwEl = document.getElementById('admin-new-password');
+    const adminConfPwEl = document.getElementById('admin-confirm-password');
+    if (adminEmailEl) adminEmailEl.value = '';
+    if (adminNewPwEl) adminNewPwEl.value = '';
+    if (adminConfPwEl) adminConfPwEl.value = '';
     const adminPwErr = document.getElementById('admin-password-error');
     const adminConfErr = document.getElementById('admin-confirm-error');
     if (adminPwErr) adminPwErr.textContent = '';
     if (adminConfErr) adminConfErr.textContent = '';
     const showPw = document.getElementById('admin-show-password');
     if (showPw) showPw.checked = false;
-    document.getElementById('admin-current-password').type = 'password';
-    document.getElementById('admin-new-password').type = 'password';
-    document.getElementById('admin-confirm-password').type = 'password';
-    
+    if (adminNewPwEl) adminNewPwEl.type = 'password';
+    if (adminConfPwEl) adminConfPwEl.type = 'password';
+   
     document.body.classList.add('modal-open');
     modal.style.display = 'flex';
     requestAnimationFrame(() => {
@@ -1652,7 +1723,7 @@ function openAdminPasswordModal() {
 function closeAdminPasswordModal() {
     const modal = document.getElementById('adminPasswordModal');
     if (!modal) return;
-    
+   
     document.body.classList.remove('modal-open');
     modal.classList.remove('show');
     setTimeout(() => {
@@ -1676,7 +1747,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 // Only close other modals, not changePasswordModal
-                if (modal.id === 'signupModal') closeSignupModal();
+                if (modal.id === 'signupModal') return; // disable background close for signup modal
                 else if (modal.id === 'signupSuccessModal') closeSignupSuccessModal();
                 else if (modal.id === 'signupErrorModal') closeSignupErrorModal();
                 // Removed changePasswordModal from this list
@@ -1691,14 +1762,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const text2 = 'ACTIVITY LOG';
     let i1 = 0, i2 = 0;
     const cursor = '<span class="typewriter-cursor"></span>';
-    
+   
     function typeWriter() {
         // Reset both lines
         if (line1) line1.innerHTML = cursor; // Start with cursor on line 1
         if (line2) line2.innerHTML = '';
         i1 = 0;
         i2 = 0;
-        
+       
         // Type first line
         const timer1 = setInterval(() => {
             if (i1 < text1.length) {
@@ -1709,7 +1780,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Move cursor to line 2 and start typing
                 line1.innerHTML = text1; // Remove cursor from line 1
                 line2.innerHTML = cursor; // Add cursor to line 2
-                
+               
                 const timer2 = setInterval(() => {
                     if (i2 < text2.length) {
                         line2.innerHTML = text2.substring(0, i2 + 1) + cursor;
@@ -1725,7 +1796,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 100);
     }
-    
+   
     // Start typewriter effect
     typeWriter();
 });
@@ -1737,7 +1808,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const adminConfPw = document.getElementById('admin-confirm-password');
     const adminPwErr = document.getElementById('admin-password-error');
     const adminConfErr = document.getElementById('admin-confirm-error');
-    
+   
     function validateAdminPassword(showConfirmErrors = false) {
         let ok = true;
         if (adminNewPw) {
@@ -1760,10 +1831,10 @@ document.addEventListener('DOMContentLoaded', function(){
         }
         return ok;
     }
-    
+   
     if (adminNewPw) adminNewPw.addEventListener('input', () => validateAdminPassword(false));
     if (adminConfPw) adminConfPw.addEventListener('input', () => validateAdminPassword(false));
-    
+   
     if (adminPwForm) {
         adminPwForm.addEventListener('submit', function(e){
             e.preventDefault();
@@ -1772,13 +1843,13 @@ document.addEventListener('DOMContentLoaded', function(){
                 else if (adminConfErr && adminConfErr.textContent) adminConfPw && adminConfPw.focus();
                 return false;
             }
-            
+           
             const btn = this.querySelector('.btn.primary');
             if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
-            
+           
             const formData = new FormData(this);
             formData.append('ajax', 'admin_change_password');
-            
+           
             fetch('Login.php', { method: 'POST', body: new URLSearchParams(formData) })
             .then(r => r.json())
             .then(j => {
@@ -1788,15 +1859,15 @@ document.addEventListener('DOMContentLoaded', function(){
                 }
             })
             .catch(() => showFloatingNotification('Network error. Please try again.', 'error'))
-            .finally(() => { 
-                if (btn) { 
-                    btn.disabled = false; 
-                    btn.textContent = 'Change Password'; 
-                } 
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Change Password';
+                }
             });
         });
     }
-    
+   
     // Show password toggle for admin modal
     const adminShowCb = document.getElementById('admin-show-password');
     const adminCurPw = document.getElementById('admin-current-password');

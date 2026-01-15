@@ -194,6 +194,7 @@ $stats = $stats_result->fetch_assoc();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Weekly Accomplishment System</title>
+    <link rel="icon" type="image/png" href="img/admin.png">
     <style>
         /* Force-hide any visible scrollbars across browsers while preserving scrolling where allowed */
         *::-webkit-scrollbar { display: none !important; }
@@ -293,7 +294,7 @@ $stats = $stats_result->fetch_assoc();
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 30px;
+            padding: 18px;
         }
         
         .stats-grid {
