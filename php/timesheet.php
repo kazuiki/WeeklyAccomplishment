@@ -66,17 +66,61 @@ $isAllWeeks = isset($_GET['all']) && $_GET['all'] == '1';
 // Load weekly accomplishments (filtered by week or all)
 $entries = [];
 if ($isAllWeeks) {
-    // Load all entries
+    // Load all entries for all weeks
     $sql = "SELECT DATE(date_record) as d, time_in, time_out, task_completed, total_hours
             FROM weekly_accomplishments
             WHERE users_user_id = ?
-            ORDER BY DATE(date_record) DESC, id DESC";
+            ORDER BY DATE(date_record) ASC, id ASC";
     if ($w = $conn->prepare($sql)) {
         $w->bind_param("i", $user_id);
         $w->execute();
         $r = $w->get_result();
         while ($row = $r->fetch_assoc()) $entries[] = $row;
         $w->close();
+    }
+    
+    // Group entries by week and fill in all weeks with all 7 days (Sunday to Saturday)
+    if (!empty($entries)) {
+        $minDate = new DateTime($entries[0]['d']);
+        $maxDate = new DateTime($entries[count($entries)-1]['d']);
+    } else {
+        $minDate = new DateTime();
+        $maxDate = new DateTime();
+    }
+    
+    // Start from first Sunday on or before minDate
+    $minDate->setTime(0, 0, 0);
+    $dayOfWeek = intval($minDate->format('w')); // 0=Sunday, 1=Monday, etc
+    $minDate->modify((-$dayOfWeek) . ' days');
+    
+    // Build all days from minDate to maxDate
+    $allDays = [];
+    $dt = clone $minDate;
+    while ($dt <= $maxDate) {
+        $dateStr = $dt->format('Y-m-d');
+        $allDays[$dateStr] = null;
+        $dt->modify('+1 day');
+    }
+    
+    // Map existing entries to their dates
+    foreach ($entries as $entry) {
+        $allDays[$entry['d']] = $entry;
+    }
+    
+    // Rebuild entries with all days in order
+    $entries = [];
+    foreach ($allDays as $date => $entry) {
+        if ($entry === null) {
+            $entries[] = [
+                'd' => $date,
+                'time_in' => '',
+                'time_out' => '',
+                'task_completed' => '',
+                'total_hours' => ''
+            ];
+        } else {
+            $entries[] = $entry;
+        }
     }
 } else {
     // Load for selected week
@@ -85,7 +129,7 @@ if ($isAllWeeks) {
             WHERE users_user_id = ?
             AND YEAR(date_record) = ?
             AND WEEK(date_record, 1) = ?
-            ORDER BY DATE(date_record) DESC, id DESC";
+            ORDER BY DATE(date_record) ASC, id ASC";
     if ($w = $conn->prepare($sql)) {
         $w->bind_param("iii", $user_id, $selectedYear, $selectedWeek);
         $w->execute();
@@ -93,16 +137,50 @@ if ($isAllWeeks) {
         while ($row = $r->fetch_assoc()) $entries[] = $row;
         $w->close();
     }
+    
+    // Fill in missing days of the week (Sunday to Saturday)
+    $dt = new DateTime();
+    $dt->setISODate($selectedYear, $selectedWeek, 1); // Monday of the week
+    // Move back to the Sunday of that week
+    $dt->modify('-1 day'); // Go back one day from Monday to get Sunday
+    
+    $allWeekDays = [];
+    for ($i = 0; $i < 7; $i++) {
+        $dateStr = $dt->format('Y-m-d');
+        $allWeekDays[$dateStr] = null;
+        $dt->modify('+1 day');
+    }
+    
+    // Map existing entries to their dates
+    foreach ($entries as $entry) {
+        $allWeekDays[$entry['d']] = $entry;
+    }
+    
+    // Rebuild entries with all 7 days in order
+    $entries = [];
+    foreach ($allWeekDays as $date => $entry) {
+        if ($entry === null) {
+            $entries[] = [
+                'd' => $date,
+                'time_in' => '',
+                'time_out' => '',
+                'task_completed' => '',
+                'total_hours' => ''
+            ];
+        } else {
+            $entries[] = $entry;
+        }
+    }
 }
 
 function fmt_time($t) {
     if ($t === null || $t === '' || $t === '---') return '';
-    // normalize to HH:MM if HH:MM:SS
+    // normalize to HH:MM in 24-hour format
     if (preg_match('/^\d{2}:\d{2}:\d{2}$/', $t)) {
-        return date('h:i A', strtotime($t));
+        return date('H:i', strtotime($t));
     }
     if (preg_match('/^\d{1,2}:\d{2}$/', $t)) {
-        return date('h:i A', strtotime($t));
+        return date('H:i', strtotime($t));
     }
     return htmlspecialchars($t);
 }
@@ -116,7 +194,7 @@ function fmt_time($t) {
 <title>DTR - Timesheet</title>
 <link rel="icon" type="image/png" href="img/qcu.png">
 <style>
-    :root { --blue: #224c7b; --line: #224c7b; }
+    :root { --blue: #224c7b; --line: #cccccc; }
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; margin: 20px; color: #222; }
     .logo-wrap { text-align: center; margin-bottom: 10px; }
@@ -167,17 +245,14 @@ function fmt_time($t) {
     }
 
     @media print {
-        body { margin: 8mm; }
+        @page { margin: 20px; }
+        body { margin: 0; }
         .no-print { display: none !important; }
         .ts-table tr { page-break-inside: avoid; break-inside: avoid; }
     }
 </style>
 </head>
 <body>
-    <div class="logo-wrap">
-        <img src="img/pkiilogo.png" alt="Company Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-    </div>
-
     <div class="week-selector no-print">
         <label for="weekSelect">Select Week:</label>
         <select id="weekSelect" onchange="if(this.value==='all'){location.href='timesheet.php?all=1';}else{location.href='timesheet.php?week='+this.value.split('-')[0]+'&year='+this.value.split('-')[1];}">
@@ -203,16 +278,21 @@ function fmt_time($t) {
 
     <table class="ts-table">
         <thead>
+            <tr>
+                <th colspan="6" style="padding: 15px; text-align: center;">
+                    <img src="img/pkiilogo.png" alt="Company Logo" style="height: 35px; object-fit: contain;" onerror="this.style.display='none';">
+                </th>
+            </tr>
             <tr class="top-meta">
                 <th colspan="9" style="text-align: center;">
-                    <span style="display: inline-block; margin-right: 80px;">Name: <?php echo htmlspecialchars($nameFormatted); ?></span>
-                    <span style="display: inline-block; margin-right: 80px;">Department: ITD</span>
-                    <span style="display: inline-block;">Position: On-The-Job Trainee</span>
+                    <span style="display: inline-block; margin-right: 80px;">Name: <span style="font-weight: normal;"><?php echo htmlspecialchars($nameFormatted); ?></span></span>
+                    <span style="display: inline-block; margin-right: 80px;">Department: <span style="font-weight: normal;">ITD</span></span>
+                    <span style="display: inline-block;">Position: <span style="font-weight: normal;">On-The-Job Trainee</span></span>
                 </th>
             </tr>
             <tr class="group-head">
                 <th colspan="3">Timesheet</th>
-                <th colspan="1" class="head-activity">Activity Details</th>
+                <th colspan="1" class="col-activity"></th>
                 <th colspan="1">Time Summary</th>
                 <th colspan="1"></th>
             </tr>
@@ -220,7 +300,7 @@ function fmt_time($t) {
                 <th class="col-date">Date</th>
                 <th class="col-time">IN</th>
                 <th class="col-time">OUT</th>
-                <th class="col-activity"></th>
+                <th class="head-activity">Activity Details</th>
                 <th class="col-rendered">Rendered</th>
                 <th class="col-remarks">Remarks</th>
             </tr>
@@ -229,18 +309,42 @@ function fmt_time($t) {
             <?php if (empty($entries)): ?>
                 <tr><td colspan="6" style="text-align:center; padding:20px;">No records found.</td></tr>
             <?php else: ?>
-                <?php foreach ($entries as $e): ?>
+                <?php 
+                    $totalHours = 0;
+                    foreach ($entries as $e): 
+                        if (isset($e['total_hours']) && $e['total_hours'] !== null) {
+                            $totalHours += intval($e['total_hours']);
+                        }
+                ?>
                     <tr>
                         <td style="text-align:center; white-space:nowrap;"><?php echo htmlspecialchars(date('F d, Y', strtotime($e['d']))); ?></td>
                         <td style="text-align:center; white-space:nowrap;"><?php echo fmt_time($e['time_in']); ?></td>
                         <td style="text-align:center; white-space:nowrap;"><?php echo fmt_time($e['time_out']); ?></td>
-                        <td style="text-align:center;"><?php echo nl2br(htmlspecialchars($e['task_completed'] ?? '')); ?></td>
+                        <td style="text-align:justify; padding:2px;"><?php echo nl2br(htmlspecialchars($e['task_completed'] ?? '')); ?></td>
                         <td style="text-align:center;"><?php echo htmlspecialchars(isset($e['total_hours']) && $e['total_hours'] !== null ? (string)intval($e['total_hours']) : ''); ?></td>
                         <td style="text-align:center;"></td>
                     </tr>
                 <?php endforeach; ?>
+                <tr style="font-weight: bold;">
+                    <td colspan="4" style="text-align: center; font-weight: 900; color: #224c7b;">Total Man Hours</td>
+                    <td style="text-align: center;"><?php echo number_format($totalHours, 2); ?></td>
+                    <td style="text-align:center;"></td>
+                </tr>
             <?php endif; ?>
         </tbody>
     </table>
+
+    <div style="margin-top: 40px; display: flex; justify-content: space-around; padding: 0 40px;">
+        <div style="text-align: center; flex: 1;">
+            <div style="font-size: 12px; margin-bottom: 30px;">Submitted By:</div>
+            <div style="border-bottom: 1px solid #000; width: 100px; margin: 0 auto 8px;"></div>
+            <div style="font-size: 12px;">Interns</div>
+        </div>
+        <div style="text-align: center; flex: 1;">
+            <div style="font-size: 12px; margin-bottom: 30px;">Approved By:</div>
+            <div style="border-bottom: 1px solid #000; width: 100px; margin: 0 auto 8px;"></div>
+            <div style="font-size: 12px;"></div>
+        </div>
+    </div>
 </body>
 </html>
